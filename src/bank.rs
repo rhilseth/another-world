@@ -23,10 +23,10 @@ impl Bank {
 struct Unpacker<'a> {
     data: &'a [u8],
     i: usize,
-    size: usize,
-    datasize: usize,
-    crc: usize,
-    chk: usize,
+    size: u32,
+    datasize: u32,
+    crc: u32,
+    chk: u32,
     output: Vec<u8>,
 }
 
@@ -43,18 +43,26 @@ impl<'a> Unpacker<'a> {
         }
     }
 
+    fn read_reverse_be_u32(&mut self) -> u32 {
+        let result = BigEndian::read_u32(&self.data[self.i..]) as u32;
+        if self.i >= 4 {
+            self.i -= 4;
+        }
+        result
+    }
+
     fn next_chunk(&mut self) -> bool {
         let mut cf = self.rcr(false);
         if self.chk == 0 {
             debug!("i = {}", self.i);
-            self.chk = BigEndian::read_u32(&self.data[self.i..]) as usize; self.i = self.i.wrapping_sub(4);
+            self.chk = self.read_reverse_be_u32();
             self.crc ^= self.chk;
             cf = self.rcr(true);
         }
         cf
     }
 
-    fn dec_unk1(&mut self, num_chunks: usize, add_count: usize) {
+    fn dec_unk1(&mut self, num_chunks: u32, add_count: u32) {
         let mut count = self.get_code(num_chunks) + add_count + 1;
         debug!("dec_unk1({}, {}) count={}", num_chunks, add_count, count);
         self.datasize -= count;
@@ -65,8 +73,8 @@ impl<'a> Unpacker<'a> {
         }
     }
 
-    fn dec_unk2(&mut self, num_chunks: usize) {
-        let i = self.get_code(num_chunks);
+    fn dec_unk2(&mut self, num_chunks: u32) {
+        let i = self.get_code(num_chunks) as usize;
         let mut count = self.size + 1;
         debug!("dec_unk2({}) i={} count={}", num_chunks, i, count);
         self.datasize -= count;
@@ -77,7 +85,7 @@ impl<'a> Unpacker<'a> {
         }
     }
 
-    fn get_code(&mut self, num_chunks: usize) -> usize {
+    fn get_code(&mut self, num_chunks: u32) -> u32 {
         let mut num_chunks = num_chunks;
         let mut c = 0;
         while num_chunks > 0 {
@@ -103,9 +111,9 @@ impl<'a> Unpacker<'a> {
         debug!("Unpack()");
         self.i = self.data.len() - 4;
         self.size = 0;
-        self.datasize = BigEndian::read_u32(&self.data[self.i..]) as usize; self.i -= 4;
-        self.crc = BigEndian::read_u32(&self.data[self.i..]) as usize; self.i -= 4;
-        self.chk = BigEndian::read_u32(&self.data[self.i..]) as usize; self.i -= 4;
+        self.datasize = self.read_reverse_be_u32();
+        self.crc = self.read_reverse_be_u32();
+        self.chk = self.read_reverse_be_u32();
         self.crc ^= self.chk;
         while self.datasize > 0 {
             if !self.next_chunk() {
