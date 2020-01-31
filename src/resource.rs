@@ -202,11 +202,13 @@ impl Resource {
 
             let load_destination_end = load_destination + entry.size;
             let dst = &mut self.memory[load_destination..load_destination_end];
-            dst.copy_from_slice(&bank.data());
+            let data = bank.data();
+            assert!(data.len() == entry.size);
+            dst.copy_from_slice(&data);
             if let EntryType::PolyAnim = entry.entry_type {
                 // video->copyPage(_vidCurPtr);
-                unimplemented!("video->copyPage");
                 entry.state = MemEntryState::NotNeeded;
+                unimplemented!("video->copyPage");
             } else {
                 entry.buf_ptr = load_destination;
                 entry.state = MemEntryState::Loaded;

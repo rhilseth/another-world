@@ -28,14 +28,14 @@ fn main() -> std::io::Result<()> {
     let mut canvas = window.into_canvas().build().expect("Expected canvas");
     canvas.set_logical_size(320, 200).expect("Expected logical size");
     let mut event_pump = sdl_context.event_pump().unwrap();
-    loop {
+    'outer: loop {
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. }
                 | Event::KeyDown {
                     keycode: Some(Keycode::Escape),
                     ..
-                } => return Ok(()),
+                } => break 'outer,
                 _ => {}
             }
             engine.run();
