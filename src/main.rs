@@ -3,9 +3,12 @@ use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 
 mod bank;
+mod buffer;
 mod engine;
+mod opcode;
 mod parts;
 mod resource;
+mod video;
 mod vm;
 
 fn main() -> std::io::Result<()> {
@@ -13,7 +16,8 @@ fn main() -> std::io::Result<()> {
     let mut resource = resource::Resource::new();
     resource.read_memlist()?;
 
-    let vm = vm::VirtualMachine::new(resource);
+    let video = video::Video { };
+    let vm = vm::VirtualMachine::new(resource, video);
     let mut engine = engine::Engine::new(vm);
 
     let sdl_context = sdl2::init().unwrap();

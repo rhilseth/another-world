@@ -44,7 +44,7 @@ impl<'a> Unpacker<'a> {
     }
 
     fn read_reverse_be_u32(&mut self) -> u32 {
-        let result = BigEndian::read_u32(&self.data[self.i..]) as u32;
+        let result = BigEndian::read_u32(&self.data[self.i..]);
         if self.i >= 4 {
             self.i -= 4;
         }

@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::io::SeekFrom;
 
-use byteorder::{BigEndian, ReadBytesExt};
+use byteorder::{BigEndian, ByteOrder, ReadBytesExt};
 use log::warn;
 
 use crate::bank::Bank;
@@ -72,7 +72,7 @@ pub struct MemEntry {
 
 pub struct Resource {
     mem_list: Vec<MemEntry>,
-    memory: [u8; MEM_BLOCK_SIZE],
+    pub memory: [u8; MEM_BLOCK_SIZE],
     current_part_id: u16,
     script_bak_ptr: usize,
     script_cur_ptr: usize,
@@ -146,6 +146,14 @@ impl Resource {
         self.current_part_id = part_id;
 
         self.script_bak_ptr = self.script_cur_ptr;
+    }
+
+    pub fn read_byte(&mut self, index: usize) -> u8 {
+        self.memory[index]
+    }
+
+    pub fn read_word(&mut self, index: usize) -> u16 {
+        BigEndian::read_u16(&self.memory[index..])
     }
 
     fn read_bank(mem_entry: &MemEntry) -> std::io::Result<Bank> {

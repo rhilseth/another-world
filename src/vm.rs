@@ -1,9 +1,16 @@
+use log::debug;
+
+use crate::buffer::Buffer;
+use crate::opcode::Opcode;
 use crate::resource::Resource;
+use crate::video::{Point, Video};
 
 const NUM_VARIABLES: usize = 256;
 const NUM_THREADS: usize = 64;
 const SET_INACTIVE_THREAD: usize = 0xfffe;
 const INACTIVE_THREAD: usize = 0xffff;
+const COLOR_BLACK: u8 = 0xff;
+const DEFAULT_ZOOM: u16 = 0x40;
 
 #[derive(Copy, Clone)]
 struct Thread {
@@ -26,24 +33,35 @@ impl Thread {
     }
 }
 
+pub enum VideoBufferSeg {
+    Cinematic,
+    Video2,
+}
+
 pub struct VirtualMachine {
     variables: [i16; NUM_VARIABLES],
     threads: [Thread; NUM_THREADS],
     resource: Resource,
+    video: Video,
     requested_next_part: Option<u16>,
     script_ptr: usize,
     stack_ptr: usize,
+    goto_next_thread: bool,
+    video_buffer_seg: VideoBufferSeg,
 }
 
 impl VirtualMachine {
-    pub fn new(resource: Resource) -> VirtualMachine {
+    pub fn new(resource: Resource, video: Video) -> VirtualMachine {
         VirtualMachine {
             variables: [0; NUM_VARIABLES],
             threads: [Thread::new(); NUM_THREADS],
             resource,
+            video,
             requested_next_part: None,
             script_ptr: 0,
             stack_ptr: 0,
+            goto_next_thread: false,
+            video_buffer_seg: VideoBufferSeg::Cinematic,
         }
     }
 
@@ -89,17 +107,76 @@ impl VirtualMachine {
     }
 
     pub fn host_frame(&mut self) {
-        for thread in self.threads.iter_mut() {
-            if thread.is_channel_active_current {
+        for thread_id in 0..self.threads.len() {
+            if self.threads[thread_id].is_channel_active_current {
                 continue;
             }
 
-            let n = thread.pc;
+            let n = self.threads[thread_id].pc;
             if n != INACTIVE_THREAD {
                 self.script_ptr = self.resource.seg_bytecode + n;
                 self.stack_ptr = 0;
+                self.goto_next_thread = false;
+                self.execute_thread();
+
+                // Save pc since it will be modified on the next iteration
+                self.threads[thread_id].pc = self.script_ptr - self.resource.seg_bytecode;
+
+                // if input.quit { break }....
+            }
+
+        }
+    }
+
+    fn fetch_byte(&mut self) -> u8 {
+        let result = self.resource.read_byte(self.script_ptr);
+        self.script_ptr += 1;
+        result
+    }
+
+    fn fetch_word(&mut self) -> u16 {
+        let result = self.resource.read_word(self.script_ptr);
+        self.script_ptr += 2;
+        result
+    }
+
+    fn execute_thread(&mut self) {
+        while !self.goto_next_thread {
+            let opcode = Opcode::decode(self.fetch_byte());
+
+            match opcode {
+                Opcode::DrawPolyBackground(val) => self.draw_poly_background(val),
+                val => unimplemented!("Unimplemented opcode: {:?}", val),
             }
         }
     }
 
+    fn draw_poly_background(&mut self, val: u8) {
+        let lsb = self.fetch_byte() as u16;
+
+        // Avoid overflow when calculating offset by removing the
+        // most significant bit
+        let msb = (val & 0x7f) as u16;
+        let offset: usize = (((msb << 8) | lsb) * 2) as usize;
+        self.video_buffer_seg = VideoBufferSeg::Cinematic;
+
+        let mut x = self.fetch_byte() as i16;
+        let mut y = self.fetch_byte() as i16;
+        let h = y - 199;
+        if h > 0 {
+            y = 199;
+            x += h;
+        }
+        debug!(
+            "DrawPolyBackground: val: 0x{:02x} off={} x={} y={}",
+            val, offset, x, y
+        );
+
+        let mut buffer = Buffer::with_offset(
+            &self.resource.memory[self.resource.seg_cinematic..],
+            offset
+        );
+        let point = Point { x, y };
+        self.video.read_and_draw_polygon(buffer, COLOR_BLACK, DEFAULT_ZOOM, point);
+    }
 }
