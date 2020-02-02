@@ -3,7 +3,7 @@ use std::io::prelude::*;
 use std::io::SeekFrom;
 
 use byteorder::{BigEndian, ByteOrder, ReadBytesExt};
-use log::warn;
+use log::{debug, warn};
 
 use crate::bank::Bank;
 use crate::parts;
@@ -108,6 +108,7 @@ impl Resource {
     }
 
     pub fn setup_part(&mut self, part_id: u16) {
+        debug!("setup_part: {}", part_id);
         if part_id == self.current_part_id {
             return;
         }
@@ -117,9 +118,11 @@ impl Resource {
         }
 
         let index = (part_id - parts::GAME_PART_FIRST) as usize;
+        debug!("Part id index: {}", index);
 
         let palette_index = parts::PARTS[index].palette;
         let code_index = parts::PARTS[index].code;
+        debug!("Code index: {}", code_index);
         let video_cinematic_index = parts::PARTS[index].video1;
         let video2_index = parts::PARTS[index].video2;
 
@@ -137,6 +140,7 @@ impl Resource {
 
         self.seg_palettes = self.mem_list[palette_index].buf_ptr;
         self.seg_bytecode = self.mem_list[code_index].buf_ptr;
+        debug!("seg_bytecode: 0x{:04x} value: {:x}", self.seg_bytecode, self.memory[self.seg_bytecode]);
         self.seg_cinematic = self.mem_list[video_cinematic_index].buf_ptr;
 
         if let Some(video2_index) = video2_index {
@@ -185,7 +189,8 @@ impl Resource {
             .collect();
 
         // Sort by rank_num in descending order
-        to_load.sort_by(|a, b| b.rank_num.cmp(&a.rank_num));
+        to_load.sort_by(|a, b| a.rank_num.cmp(&b.rank_num));
+        to_load.reverse();
 
         for entry in to_load {
             let load_destination = match entry.entry_type {
@@ -199,6 +204,7 @@ impl Resource {
                     self.script_cur_ptr
                 }
             };
+            debug!("load(): {:?} 0x{:x}", entry.entry_type, load_destination);
 
             if entry.bank_id == 0 {
                 warn!("Resource: entry.bank_id == 0");
@@ -207,6 +213,7 @@ impl Resource {
             }
 
             let bank = Resource::read_bank(&entry).expect("Could not read bank");
+            debug!("read_bank() rank_num: {} packed_size: 0x{:x} size: 0x{:x} type={:?} pos={:x} bank_id={:x}", entry.rank_num, entry.packed_size, entry.size, entry.entry_type, entry.bank_offset, entry.bank_id);
 
             let load_destination_end = load_destination + entry.size;
             let dst = &mut self.memory[load_destination..load_destination_end];
@@ -220,6 +227,7 @@ impl Resource {
             } else {
                 entry.buf_ptr = load_destination;
                 entry.state = MemEntryState::Loaded;
+                self.script_cur_ptr += entry.size;
             }
         }
     }

@@ -8,6 +8,7 @@ mod engine;
 mod opcode;
 mod parts;
 mod resource;
+mod strings;
 mod video;
 mod vm;
 

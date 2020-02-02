@@ -66,6 +66,7 @@ impl VirtualMachine {
     }
 
     pub fn init_for_part(&mut self, part_id: u16) {
+        debug!("init_for_part: {}", part_id);
         // player.stop();
         // mixer.stop_all();
 
@@ -114,9 +115,13 @@ impl VirtualMachine {
 
             let n = self.threads[thread_id].pc;
             if n != INACTIVE_THREAD {
+                debug!("Start of bytecode: {}", self.resource.seg_bytecode);
                 self.script_ptr = self.resource.seg_bytecode + n;
                 self.stack_ptr = 0;
                 self.goto_next_thread = false;
+
+                debug!("host_frame() thread_id=0x{:02x} n=0x{:02x}", thread_id, n);
+
                 self.execute_thread();
 
                 // Save pc since it will be modified on the next iteration
@@ -145,10 +150,19 @@ impl VirtualMachine {
             let opcode = Opcode::decode(self.fetch_byte());
 
             match opcode {
+                Opcode::DrawString => self.draw_string(),
                 Opcode::DrawPolyBackground(val) => self.draw_poly_background(val),
                 val => unimplemented!("Unimplemented opcode: {:?}", val),
             }
         }
+    }
+
+    fn draw_string(&mut self) {
+        let string_id = self.fetch_word();
+        let x = self.fetch_byte() as u16;
+        let y = self.fetch_byte() as u16;
+        let color = self.fetch_byte() as u16;
+        self.video.draw_string(color, x, y, string_id);
     }
 
     fn draw_poly_background(&mut self, val: u8) {
@@ -172,7 +186,7 @@ impl VirtualMachine {
             val, offset, x, y
         );
 
-        let mut buffer = Buffer::with_offset(
+        let buffer = Buffer::with_offset(
             &self.resource.memory[self.resource.seg_cinematic..],
             offset
         );
