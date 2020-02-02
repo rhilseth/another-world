@@ -4,6 +4,7 @@ use crate::buffer::Buffer;
 use crate::strings::STRINGS_TABLE_ENG;
 
 const MAX_POINTS: usize = 50;
+const VID_PAGE_SIZE: usize = 320 * 200 / 2;
 
 pub struct Point {
     pub x: i16,
@@ -34,10 +35,49 @@ impl Polygon {
     }
 }
 
+#[derive(Copy, Clone)]
+struct Page {
+    data: [u8; VID_PAGE_SIZE],
+}
+
+impl Page {
+    pub fn new() -> Page {
+        Page {
+            data: [0; VID_PAGE_SIZE],
+        }
+    }
+}
+
 pub struct Video {
+    pages: [Page; 4],
+    cur_page_ptr1: usize,
+    cur_page_ptr2: usize,
+    cur_page_ptr3: usize,
 }
 
 impl Video {
+    pub fn new() -> Video {
+        Video {
+            pages: [Page::new(); 4],
+            cur_page_ptr1: 2,
+            cur_page_ptr2: 2,
+            cur_page_ptr3: 1,
+        }
+    }
+
+    pub fn change_page_ptr1(&mut self, page_id: u8) {
+        self.cur_page_ptr1 = self.get_page_id(page_id);
+    }
+
+    pub fn fill_video_page(&self, page_id: u8, color: u8) {
+        let mut page = self.get_page(page_id);
+
+        let c = (color << 4) | color;
+        for b in page.data.iter_mut() {
+            *b = c;
+        }
+    }
+
     pub fn draw_string(&self, color: u16, x: u16, y: u16, string_id: u16) {
         debug!("DrawString(0x{:04x}, {}, {}, {})", string_id, x, y, color);
         if let Some(entry) = STRINGS_TABLE_ENG.get(&string_id) {
@@ -91,5 +131,22 @@ impl Video {
         point: Point,
     ) {
         unimplemented!("fill_polygon");
+    }
+
+    fn get_page_id(&self, page_id: u8) -> usize {
+        let page_id = page_id as usize;
+        match page_id {
+            0..=3 => page_id,
+            0xff => self.cur_page_ptr3,
+            0xfe => self.cur_page_ptr2,
+            _ => {
+                warn!("get_page() id != [0, 1, 2, 3, 0xfe, 0xff]");
+                0
+            }
+        }
+    }
+
+    fn get_page(&self, page_id: u8) -> Page {
+        self.pages[self.get_page_id(page_id)]
     }
 }

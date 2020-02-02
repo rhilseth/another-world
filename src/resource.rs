@@ -189,6 +189,7 @@ impl Resource {
             .collect();
 
         // Sort by rank_num in descending order
+        // TODO: entries with a higher index should come before lower index entries
         to_load.sort_by(|a, b| a.rank_num.cmp(&b.rank_num));
         to_load.reverse();
 

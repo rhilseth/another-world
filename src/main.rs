@@ -17,7 +17,7 @@ fn main() -> std::io::Result<()> {
     let mut resource = resource::Resource::new();
     resource.read_memlist()?;
 
-    let video = video::Video { };
+    let video = video::Video::new();
     let vm = vm::VirtualMachine::new(resource, video);
     let mut engine = engine::Engine::new(vm);
 

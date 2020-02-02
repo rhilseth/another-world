@@ -11,10 +11,10 @@ const SET_INACTIVE_THREAD: usize = 0xfffe;
 const INACTIVE_THREAD: usize = 0xffff;
 const COLOR_BLACK: u8 = 0xff;
 const DEFAULT_ZOOM: u16 = 0x40;
+const STACK_SIZE: usize = 0xff;
 
 #[derive(Copy, Clone)]
 struct Thread {
-    script_stack_call: usize,
     pc: usize,
     requested_pc_offset: Option<usize>,
     is_channel_active_current: bool,
@@ -24,7 +24,6 @@ struct Thread {
 impl Thread {
     fn new() -> Thread {
         Thread {
-            script_stack_call: 0,
             pc: INACTIVE_THREAD,
             requested_pc_offset: None,
             is_channel_active_current: false,
@@ -48,6 +47,7 @@ pub struct VirtualMachine {
     stack_ptr: usize,
     goto_next_thread: bool,
     video_buffer_seg: VideoBufferSeg,
+    script_stack_calls: [usize; STACK_SIZE],
 }
 
 impl VirtualMachine {
@@ -62,6 +62,7 @@ impl VirtualMachine {
             stack_ptr: 0,
             goto_next_thread: false,
             video_buffer_seg: VideoBufferSeg::Cinematic,
+            script_stack_calls: [0; STACK_SIZE],
         }
     }
 
@@ -150,11 +151,41 @@ impl VirtualMachine {
             let opcode = Opcode::decode(self.fetch_byte());
 
             match opcode {
+                Opcode::Call => self.call(),
+                Opcode::SelectVideoPage => self.select_video_page(),
+                Opcode::FillVideoPage => self.fill_video_page(),
                 Opcode::DrawString => self.draw_string(),
                 Opcode::DrawPolyBackground(val) => self.draw_poly_background(val),
-                val => unimplemented!("Unimplemented opcode: {:?}", val),
+                val => unimplemented!("pc 0x{:x} Unimplemented opcode: {:?}", self.script_ptr, val),
             }
         }
+    }
+
+    // Opcode implementation
+
+    fn call(&mut self) {
+        let offset = self.fetch_word();
+
+        debug!("pc 0x{:x} call(0x{:x})", self.script_ptr, offset);
+        self.script_stack_calls[self.stack_ptr] = self.script_ptr;
+        if self.stack_ptr == STACK_SIZE {
+            panic!("Stack overflow");
+        }
+        self.stack_ptr += 1;
+        self.script_ptr = self.resource.seg_bytecode + offset as usize;
+    }
+
+    fn select_video_page(&mut self) {
+        let frame_buffer_id = self.fetch_byte();
+        debug!("pc 0x{:x} select_video_page({})", self.script_ptr, frame_buffer_id);
+        self.video.change_page_ptr1(frame_buffer_id);
+    }
+
+    fn fill_video_page(&mut self) {
+        let page_id = self.fetch_byte();
+        let color = self.fetch_byte();
+        debug!("pc 0x{:x} fill_video_page({}, {})", self.script_ptr, page_id, color);
+        self.video.fill_video_page(page_id, color);
     }
 
     fn draw_string(&mut self) {
