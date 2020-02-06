@@ -2,9 +2,44 @@ use log::{debug, warn};
 
 use crate::buffer::Buffer;
 use crate::strings::STRINGS_TABLE_ENG;
+use crate::sys::SDLSys;
 
 const MAX_POINTS: usize = 50;
 const VID_PAGE_SIZE: usize = 320 * 200 / 2;
+const NUM_COLORS: usize = 16;
+
+#[derive(Copy, Clone)]
+pub struct Color {
+    r: u8,
+    g: u8,
+    b: u8,
+    a: u8,
+}
+
+pub struct Palette {
+    entries: [Color; NUM_COLORS],
+}
+
+impl Palette {
+    pub fn from_bytes(buffer: &[u8]) -> Palette {
+        let mut entries = [Color { r: 0, g: 0, b: 0, a: 0 }; NUM_COLORS];
+        for i in 0..NUM_COLORS {
+            let c1 = buffer[i * 2];
+            let c2 = buffer[i * 2 + 1];
+            let r = (((c1 & 0x0f) << 2) | ((c1 & 0x0f) >> 2)) << 2;
+            let g = (((c2 & 0xf0) >> 2) | ((c2 & 0xf0) >> 6)) << 2;
+            let b = (((c2 & 0x0f) >> 2) | ((c2 & 0x0f) << 2)) << 2;
+            let a = 0xff;
+            entries[i] = Color {
+                r,
+                g,
+                b,
+                a,
+            };
+        }
+        Palette { entries }
+    }
+}
 
 pub struct Point {
     pub x: i16,
@@ -36,7 +71,7 @@ impl Polygon {
 }
 
 #[derive(Copy, Clone)]
-struct Page {
+pub struct Page {
     data: [u8; VID_PAGE_SIZE],
 }
 
@@ -49,7 +84,9 @@ impl Page {
 }
 
 pub struct Video {
+    sys: SDLSys,
     pages: [Page; 4],
+    palette_requested: Option<Palette>,
     cur_page_ptr1: usize,
     cur_page_ptr2: usize,
     cur_page_ptr3: usize,
@@ -58,11 +95,34 @@ pub struct Video {
 impl Video {
     pub fn new() -> Video {
         Video {
+            sys: SDLSys { },
             pages: [Page::new(); 4],
+            palette_requested: None,
             cur_page_ptr1: 2,
             cur_page_ptr2: 2,
             cur_page_ptr3: 1,
         }
+    }
+
+    fn change_palette(&mut self, palette: Palette) {
+
+    }
+
+    pub fn update_display(&mut self, page_id: u8) {
+        if page_id != 0xfe {
+            if page_id == 0xff {
+                let tmp = self.cur_page_ptr3;
+                self.cur_page_ptr3 = self.cur_page_ptr2;
+                self.cur_page_ptr2 = tmp;
+            } else {
+                self.cur_page_ptr2 = self.get_page_id(page_id);
+            }
+        }
+
+        if let Some(palette) = self.palette_requested.take() {
+            self.change_palette(palette);
+        }
+        self.sys.update_display(&self.pages[self.cur_page_ptr2]);
     }
 
     pub fn change_page_ptr1(&mut self, page_id: u8) {

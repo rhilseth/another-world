@@ -3,7 +3,8 @@ use log::debug;
 use crate::buffer::Buffer;
 use crate::opcode::Opcode;
 use crate::resource::Resource;
-use crate::video::{Point, Video};
+use crate::video::{Palette, Point, Video};
+use crate::sys::SDLSys;
 
 const NUM_VARIABLES: usize = 256;
 const NUM_THREADS: usize = 64;
@@ -12,6 +13,9 @@ const INACTIVE_THREAD: usize = 0xffff;
 const COLOR_BLACK: u8 = 0xff;
 const DEFAULT_ZOOM: u16 = 0x40;
 const STACK_SIZE: usize = 0xff;
+
+const VM_VARIABLE_PAUSE_SLICES: usize = 0xff;
+
 
 #[derive(Copy, Clone)]
 struct Thread {
@@ -48,10 +52,12 @@ pub struct VirtualMachine {
     goto_next_thread: bool,
     video_buffer_seg: VideoBufferSeg,
     script_stack_calls: [usize; STACK_SIZE],
+    sys: SDLSys,
+    last_timestamp: u64,
 }
 
 impl VirtualMachine {
-    pub fn new(resource: Resource, video: Video) -> VirtualMachine {
+    pub fn new(resource: Resource, video: Video, sys: SDLSys) -> VirtualMachine {
         VirtualMachine {
             variables: [0; NUM_VARIABLES],
             threads: [Thread::new(); NUM_THREADS],
@@ -63,6 +69,8 @@ impl VirtualMachine {
             goto_next_thread: false,
             video_buffer_seg: VideoBufferSeg::Cinematic,
             script_stack_calls: [0; STACK_SIZE],
+            sys,
+            last_timestamp: 0,
         }
     }
 
@@ -148,14 +156,18 @@ impl VirtualMachine {
 
     fn execute_thread(&mut self) {
         while !self.goto_next_thread {
+            debug!("pc: 0x{:x} Decoding opcode", self.script_ptr);
             let opcode = Opcode::decode(self.fetch_byte());
 
             match opcode {
-                Opcode::Call => self.call(),
-                Opcode::SelectVideoPage => self.select_video_page(),
-                Opcode::FillVideoPage => self.fill_video_page(),
-                Opcode::DrawString => self.draw_string(),
-                Opcode::DrawPolyBackground(val) => self.draw_poly_background(val),
+                Opcode::Call => self.op_call(),
+                Opcode::Ret => self.op_ret(),
+                Opcode::SetPalette => self.op_set_palette(),
+                Opcode::SelectVideoPage => self.op_select_video_page(),
+                Opcode::FillVideoPage => self.op_fill_video_page(),
+                Opcode::BlitFrameBuffer => self.op_blit_frame_buffer(),
+                Opcode::DrawString => self.op_draw_string(),
+                Opcode::DrawPolyBackground(val) => self.op_draw_poly_background(val),
                 val => unimplemented!("pc 0x{:x} Unimplemented opcode: {:?}", self.script_ptr, val),
             }
         }
@@ -163,11 +175,11 @@ impl VirtualMachine {
 
     // Opcode implementation
 
-    fn call(&mut self) {
+    fn op_call(&mut self) {
         let offset = self.fetch_word();
 
-        debug!("pc 0x{:x} call(0x{:x})", self.script_ptr, offset);
-        self.script_stack_calls[self.stack_ptr] = self.script_ptr;
+        debug!("call(0x{:x})", offset);
+        self.script_stack_calls[self.stack_ptr] = self.script_ptr - self.resource.seg_bytecode;
         if self.stack_ptr == STACK_SIZE {
             panic!("Stack overflow");
         }
@@ -175,20 +187,63 @@ impl VirtualMachine {
         self.script_ptr = self.resource.seg_bytecode + offset as usize;
     }
 
-    fn select_video_page(&mut self) {
+    fn op_ret(&mut self) {
+        debug!("ret()");
+        if self.stack_ptr == 0 {
+            panic!("Stack underflow!");
+        }
+        self.stack_ptr -= 1;
+        self.script_ptr = self.resource.seg_bytecode + self.script_stack_calls[self.stack_ptr]
+    }
+
+    fn op_set_palette(&mut self) {
+        let palette_id = self.fetch_word();
+        debug!("set_palette({})", palette_id);
+        let palette_id = (palette_id >> 8) as u8;
+        if palette_id >= 32 {
+            return;
+        }
+        let palette_offset = palette_id as usize * 32;
+        let start = self.resource.seg_palettes + palette_offset;
+        let end = start + 32;
+        let palette_data = &self.resource.memory[start..end];
+        let palette = Palette::from_bytes(palette_data);
+
+    }
+
+    fn op_select_video_page(&mut self) {
         let frame_buffer_id = self.fetch_byte();
-        debug!("pc 0x{:x} select_video_page({})", self.script_ptr, frame_buffer_id);
+        debug!("select_video_page({})", frame_buffer_id);
         self.video.change_page_ptr1(frame_buffer_id);
     }
 
-    fn fill_video_page(&mut self) {
+    fn op_fill_video_page(&mut self) {
         let page_id = self.fetch_byte();
         let color = self.fetch_byte();
-        debug!("pc 0x{:x} fill_video_page({}, {})", self.script_ptr, page_id, color);
+        debug!("fill_video_page({}, {})", page_id, color);
         self.video.fill_video_page(page_id, color);
     }
 
-    fn draw_string(&mut self) {
+    fn op_blit_frame_buffer(&mut self) {
+        let page_id = self.fetch_byte();
+        debug!("blit_frame_buffer({})", page_id);
+        //inp_handle_special_keys();
+
+        let delay = self.sys.get_timestamp() - self.last_timestamp;
+        let time_to_sleep = self.variables[VM_VARIABLE_PAUSE_SLICES] as u64 * 20 - delay;
+
+        if time_to_sleep > 0 {
+            self.sys.sleep(time_to_sleep);
+        }
+
+        self.last_timestamp = self.sys.get_timestamp();
+
+        self.variables[0xf7] = 0;
+
+        self.video.update_display(page_id);
+    }
+
+    fn op_draw_string(&mut self) {
         let string_id = self.fetch_word();
         let x = self.fetch_byte() as u16;
         let y = self.fetch_byte() as u16;
@@ -196,7 +251,7 @@ impl VirtualMachine {
         self.video.draw_string(color, x, y, string_id);
     }
 
-    fn draw_poly_background(&mut self, val: u8) {
+    fn op_draw_poly_background(&mut self, val: u8) {
         let lsb = self.fetch_byte() as u16;
 
         // Avoid overflow when calculating offset by removing the

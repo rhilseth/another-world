@@ -9,6 +9,7 @@ mod opcode;
 mod parts;
 mod resource;
 mod strings;
+mod sys;
 mod video;
 mod vm;
 
@@ -18,7 +19,8 @@ fn main() -> std::io::Result<()> {
     resource.read_memlist()?;
 
     let video = video::Video::new();
-    let vm = vm::VirtualMachine::new(resource, video);
+    let sys = sys::SDLSys::new();
+    let vm = vm::VirtualMachine::new(resource, video, sys);
     let mut engine = engine::Engine::new(vm);
 
     let sdl_context = sdl2::init().unwrap();
