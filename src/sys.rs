@@ -41,7 +41,7 @@ impl SDLSys {
             .map(|c| Color::RGBA(c.r, c.g, c.b, c.a)).collect();
         let sdl_palette = Palette::with_colors(&colors).unwrap();
 
-        self.surface.set_palette(&sdl_palette);
+        self.surface.set_palette(&sdl_palette).unwrap();
     }
 
     pub fn update_display(&mut self, page: &video::Page) {

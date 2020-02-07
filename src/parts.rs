@@ -18,5 +18,16 @@ pub const PARTS: [Part; 10] = [
     Part { palette: 0x7D, code: 0x7E, video1: 0x7F, video2: None }  // password screen
 ];
 
-pub const GAME_PART_FIRST: u16 = 0x3e80;
-pub const GAME_PART_LAST: u16 = 0x3e89;
+pub const GAME_PART1: u16 = 0x3E80;
+pub const GAME_PART2: u16 = 0x3E81;   //Introductino
+pub const GAME_PART3: u16 = 0x3E82;
+pub const GAME_PART4: u16 = 0x3E83;   //Wake up in the suspended jail
+pub const GAME_PART5: u16 = 0x3E84;
+pub const GAME_PART6: u16 = 0x3E85;   //BattleChar sequence
+pub const GAME_PART7: u16 = 0x3E86;
+pub const GAME_PART8: u16 = 0x3E87;
+pub const GAME_PART9: u16 = 0x3E88;
+pub const GAME_PART10: u16 = 0x3E89;
+
+pub const GAME_PART_FIRST: u16 = GAME_PART1;
+pub const GAME_PART_LAST: u16 = GAME_PART10;

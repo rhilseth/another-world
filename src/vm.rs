@@ -1,7 +1,9 @@
 use log::{debug, warn};
+use rand::random;
 
 use crate::buffer::Buffer;
 use crate::opcode::Opcode;
+use crate::parts;
 use crate::resource::Resource;
 use crate::video::{Palette, Point, Video};
 use crate::sys::SDLSys;
@@ -14,6 +16,7 @@ const COLOR_BLACK: u8 = 0xff;
 const DEFAULT_ZOOM: u16 = 0x40;
 const STACK_SIZE: usize = 0xff;
 
+const VM_VARIABLE_RANDOM_SEED: usize = 0x3c;
 const VM_VARIABLE_SCROLL_Y: usize = 0xf9;
 const VM_VARIABLE_PAUSE_SLICES: usize = 0xff;
 
@@ -59,8 +62,17 @@ pub struct VirtualMachine {
 
 impl VirtualMachine {
     pub fn new(resource: Resource, video: Video, sys: SDLSys) -> VirtualMachine {
+        let mut variables = [0; NUM_VARIABLES];
+        variables[0x54] = 0x81;
+        variables[VM_VARIABLE_RANDOM_SEED] = random::<i16>();
+        if cfg!(feature = "bypass_protection") {
+            variables[0xb6] = 0x10;
+            variables[0xc6] = 0x80;
+            variables[0xf2] = 4000;
+            variables[0xdc] = 33;
+        }
         VirtualMachine {
-            variables: [0; NUM_VARIABLES],
+            variables,
             threads: [Thread::new(); NUM_THREADS],
             resource,
             video,
@@ -178,6 +190,8 @@ impl VirtualMachine {
                 Opcode::KillThread => self.op_kill_thread(),
                 Opcode::DrawString => self.op_draw_string(),
                 Opcode::Or => self.op_or(),
+                Opcode::UpdateMemList => self.op_update_memlist(),
+                Opcode::PlayMusic => self.op_play_music(),
                 Opcode::DrawPolyBackground(val) => self.op_draw_poly_background(val),
                 val => unimplemented!("pc 0x{:x} Unimplemented opcode: {:?}", self.script_ptr, val),
             }
@@ -357,6 +371,30 @@ impl VirtualMachine {
         self.variables[variable_id] = (self.variables[variable_id] as u16 | value) as i16;
     }
 
+    fn op_update_memlist(&mut self) {
+        let resource_id = self.fetch_word();
+        debug!("update_memlist({})", resource_id);
+
+        if resource_id == 0 {
+            // self.player.stop();
+            // self.mixer.stop_all();
+            self.resource.invalidate_resource();
+        } else {
+            if resource_id >= parts::GAME_PART_FIRST {
+                self.requested_next_part = Some(resource_id);
+            } else {
+                self.resource.load_memory_entry(resource_id);
+            }
+        }
+    }
+
+    fn op_play_music(&mut self) {
+        let resource_num = self.fetch_word();
+        let delay = self.fetch_word();
+        let pos = self.fetch_byte();
+        warn!("play_music() not implemented");
+    }
+
     fn op_draw_poly_background(&mut self, val: u8) {
         let lsb = self.fetch_byte() as u16;
 
@@ -378,11 +416,11 @@ impl VirtualMachine {
             val, offset, x, y
         );
 
-        let buffer = Buffer::with_offset(
+        let mut buffer = Buffer::with_offset(
             &self.resource.memory[self.resource.seg_cinematic..],
             offset
         );
         let point = Point { x, y };
-        self.video.read_and_draw_polygon(buffer, COLOR_BLACK, DEFAULT_ZOOM, point);
+        self.video.read_and_draw_polygon(&mut buffer, COLOR_BLACK, DEFAULT_ZOOM, point);
     }
 }

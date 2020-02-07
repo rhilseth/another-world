@@ -160,6 +160,27 @@ impl Resource {
         BigEndian::read_u16(&self.memory[index..])
     }
 
+    pub fn invalidate_resource(&mut self) {
+        for entry in self.mem_list.iter_mut() {
+            match entry.entry_type {
+                EntryType::PolyAnim | EntryType::Unknown(_) => {
+                    entry.state = MemEntryState::NotNeeded;
+                }
+                _ => { }
+            }
+        }
+        self.script_cur_ptr = self.script_bak_ptr;
+    }
+
+    pub fn load_memory_entry(&mut self, resource_id: u16) {
+        let resource_id = resource_id as usize;
+        let entry = &mut self.mem_list[resource_id];
+        if entry.state == MemEntryState::NotNeeded {
+            entry.state = MemEntryState::LoadMe;
+            self.load_marked_as_needed();
+        }
+    }
+
     fn read_bank(mem_entry: &MemEntry) -> std::io::Result<Bank> {
         let file_name = format!("data/Bank{:02}", mem_entry.bank_id);
         let mut file = File::open(file_name)?;

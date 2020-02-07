@@ -41,6 +41,7 @@ impl Palette {
     }
 }
 
+#[derive(Debug)]
 pub struct Point {
     pub x: i16,
     pub y: i16,
@@ -53,7 +54,7 @@ struct Polygon {
 }
 
 impl Polygon {
-    pub fn read_vertices(mut buffer: Buffer, zoom: u16) -> Polygon {
+    pub fn read_vertices(buffer: &mut Buffer, zoom: u16) -> Polygon {
         let bbw = buffer.fetch_byte() as u16 * zoom / 64;
         let bbh = buffer.fetch_byte() as u16 * zoom / 64;
         let num_points = buffer.fetch_byte() as usize;
@@ -67,6 +68,10 @@ impl Polygon {
             points.push(Point { x, y });
         }
         Polygon { bbw, bbh, points }
+    }
+
+    fn num_points(&self) -> usize {
+        self.points.len()
     }
 }
 
@@ -183,8 +188,8 @@ impl Video {
     }
 
     pub fn read_and_draw_polygon(
-        &self,
-        mut buffer: Buffer,
+        &mut self,
+        buffer: &mut Buffer,
         color: u8,
         zoom: u16,
         point: Point
@@ -210,22 +215,81 @@ impl Video {
     }
 
     fn read_and_draw_polygon_hierarchy(
-        &self,
-        mut buffer: Buffer,
+        &mut self,
+        buffer: &mut Buffer,
         zoom: u16,
         point: Point
     ) {
-        unimplemented!("read_and_draw_polygon_hierarchy");
+        let x = buffer.fetch_byte() as i16 * zoom as i16 / 64;
+        let y = buffer.fetch_byte() as i16 * zoom as i16 / 64;
+        let pt = Point { x, y };
+
+        let children = buffer.fetch_byte() as usize;
+        for _ in 0..children {
+            let mut offset = buffer.fetch_word() as usize;
+
+            let x = buffer.fetch_byte() as i16 * zoom as i16 / 64;
+            let y = buffer.fetch_byte() as i16 * zoom as i16 / 64;
+            let po = Point { x: pt.x + x, y: pt.y + y };
+
+            let mut color = 0xff;
+            let _bp = offset;
+            offset &= 0x7fff;
+
+            if _bp & 0x8000 > 0 {
+                color = buffer.fetch_byte() & 0x7f;
+                buffer.offset += 1;
+            }
+
+            let bak_offset = buffer.offset;
+            buffer.offset = offset * 2;
+
+            self.read_and_draw_polygon(buffer, color, zoom, po);
+
+            buffer.offset = bak_offset;
+        }
     }
 
     fn fill_polygon(
-        &self,
+        &mut self,
         polygon: Polygon,
         color: u8,
         zoom: u16,
         point: Point,
     ) {
-        unimplemented!("fill_polygon");
+        if polygon.bbw == 0 && polygon.bbh == 1 && polygon.num_points() == 4 {
+            self.draw_point(color, point);
+            return;
+        }
+
+        let x1 = point.x - polygon.bbw as i16 / 2;
+        let x2 = point.x + polygon.bbw as i16 / 2;
+        let y1 = point.y - polygon.bbh as i16 / 2;
+        let y2 = point.y + polygon.bbh as i16 / 2;
+    }
+
+    fn draw_point(&mut self, color: u8, point: Point) {
+        debug!("draw_point({}, {:?})", color, point);
+        if point.x >= 0 && point.x <= 319 && point.y >= 0 && point.y <= 199 {
+            let offset = (point.y * 160 + point.x / 2) as usize;
+
+            let (mut cmasko, mut cmaskn) = if point.x & 1 > 0 {
+                (0xf0, 0x0f)
+            } else {
+                (0x0f, 0xf0)
+            };
+
+            let mut colb = (color << 4) | color;
+            if color == 0x10 {
+                cmaskn &= 0x88;
+                cmasko = !cmaskn;
+                colb = 0x88;
+            } else if color == 0x11 {
+                colb = self.pages[0].data[offset];
+            }
+            let b = self.pages[self.cur_page_ptr1].data[offset];
+            self.pages[self.cur_page_ptr1].data[offset] = (b & cmasko) | (colb & cmaskn);
+        }
     }
 
     fn get_page_id(&self, page_id: u8) -> usize {
