@@ -18,23 +18,14 @@ fn main() -> std::io::Result<()> {
     let mut resource = resource::Resource::new();
     resource.read_memlist()?;
 
+    let sdl_context = sdl2::init().unwrap();
+    let mut event_pump = sdl_context.event_pump().unwrap();
+
+    let sys = sys::SDLSys::new(sdl_context);
     let video = video::Video::new();
-    let sys = sys::SDLSys::new();
     let vm = vm::VirtualMachine::new(resource, video, sys);
     let mut engine = engine::Engine::new(vm);
 
-    let sdl_context = sdl2::init().unwrap();
-    let video_subsystem = sdl_context.video().unwrap();
-
-    let window = video_subsystem
-        .window("Another world", 640, 400)
-        .position_centered()
-        .build()
-        .unwrap();
-
-    let mut canvas = window.into_canvas().build().expect("Expected canvas");
-    canvas.set_logical_size(320, 200).expect("Expected logical size");
-    let mut event_pump = sdl_context.event_pump().unwrap();
     'outer: loop {
         for event in event_pump.poll_iter() {
             match event {

@@ -1,4 +1,4 @@
-use log::debug;
+use log::{debug, warn};
 
 use crate::buffer::Buffer;
 use crate::opcode::Opcode;
@@ -14,6 +14,7 @@ const COLOR_BLACK: u8 = 0xff;
 const DEFAULT_ZOOM: u16 = 0x40;
 const STACK_SIZE: usize = 0xff;
 
+const VM_VARIABLE_SCROLL_Y: usize = 0xf9;
 const VM_VARIABLE_PAUSE_SLICES: usize = 0xff;
 
 
@@ -160,13 +161,23 @@ impl VirtualMachine {
             let opcode = Opcode::decode(self.fetch_byte());
 
             match opcode {
+                Opcode::MovConst => self.op_mov_const(),
+                Opcode::Mov => self.op_mov(),
+                Opcode::AddConst => self.op_add_const(),
                 Opcode::Call => self.op_call(),
                 Opcode::Ret => self.op_ret(),
+                Opcode::PauseThread => self.op_pause_thread(),
+                Opcode::Jmp => self.op_jmp(),
+                Opcode::SetSetVect => self.op_set_set_vect(),
+                Opcode::CondJmp => self.op_cond_jmp(),
                 Opcode::SetPalette => self.op_set_palette(),
                 Opcode::SelectVideoPage => self.op_select_video_page(),
                 Opcode::FillVideoPage => self.op_fill_video_page(),
+                Opcode::CopyVideoPage => self.op_copy_video_page(),
                 Opcode::BlitFrameBuffer => self.op_blit_frame_buffer(),
+                Opcode::KillThread => self.op_kill_thread(),
                 Opcode::DrawString => self.op_draw_string(),
+                Opcode::Or => self.op_or(),
                 Opcode::DrawPolyBackground(val) => self.op_draw_poly_background(val),
                 val => unimplemented!("pc 0x{:x} Unimplemented opcode: {:?}", self.script_ptr, val),
             }
@@ -174,6 +185,29 @@ impl VirtualMachine {
     }
 
     // Opcode implementation
+
+    fn op_mov_const(&mut self) {
+        let variable_id = self.fetch_byte() as usize;
+        let value = self.fetch_word() as i16;
+        debug!("mov_const(0x{:02x}, {})", variable_id, value);
+        self.variables[variable_id] = value;
+    }
+
+    fn op_mov(&mut self) {
+        let dst_variable_id = self.fetch_byte() as usize;
+        let src_variable_id = self.fetch_byte() as usize;
+        debug!("mov(0x{:02x}, 0x{:02x})", dst_variable_id, src_variable_id);
+        self.variables[dst_variable_id] = self.variables[src_variable_id];
+    }
+
+    fn op_add_const(&mut self) {
+        // Insert gun sound hack here at some point
+        let variable_id = self.fetch_byte() as usize;
+        let value = self.fetch_word();
+        debug!("add_const(0x{:02x}, {})", variable_id, value);
+        self.variables[variable_id] = self.variables[variable_id].wrapping_add(value as i16);
+
+    }
 
     fn op_call(&mut self) {
         let offset = self.fetch_word();
@@ -194,6 +228,58 @@ impl VirtualMachine {
         }
         self.stack_ptr -= 1;
         self.script_ptr = self.resource.seg_bytecode + self.script_stack_calls[self.stack_ptr]
+    }
+
+    fn op_pause_thread(&mut self) {
+        debug!("pause_thread()");
+        self.goto_next_thread = true;
+    }
+
+    fn op_jmp(&mut self) {
+        let pc_offset = self.fetch_word() as usize;
+        debug!("op_jmp(0x{:02x})", pc_offset);
+        self.script_ptr = self.resource.seg_bytecode + pc_offset;
+    }
+
+    fn op_set_set_vect(&mut self) {
+        let thread_id = self.fetch_byte() as usize;
+        let pc_offset_requested = self.fetch_word() as usize;
+        debug!("set_set_vect(0x{:02x}, 0x{:x})", thread_id, pc_offset_requested);
+        self.threads[thread_id].requested_pc_offset = Some(pc_offset_requested);
+    }
+
+    fn op_cond_jmp(&mut self) {
+        let opcode = self.fetch_byte();
+        let var = self.fetch_byte() as usize;
+        let b = self.variables[var];
+
+        let a = if opcode & 0x80 > 0 {
+            let var = self.fetch_byte() as usize;
+            self.variables[var]
+        } else if opcode & 0x40 > 0 {
+            self.fetch_word() as i16
+        } else {
+            self.fetch_byte() as i16
+        };
+        debug!("op_cond_jmp({}, 0x{:02x}, 0x{:02x})", opcode, b, a);
+
+        let expr = match opcode & 7 {
+            0 => b == a,
+            1 => b != a,
+            2 => b > a,
+            3 => b >= a,
+            4 => b < a,
+            5 => b <= a,
+            _ => {
+                warn!("op_cond_jmp() invalid condition {}", opcode & 7);
+                false
+            }
+        };
+        if expr {
+            self.op_jmp();
+        } else {
+            self.fetch_word();
+        }
     }
 
     fn op_set_palette(&mut self) {
@@ -224,6 +310,13 @@ impl VirtualMachine {
         self.video.fill_video_page(page_id, color);
     }
 
+    fn op_copy_video_page(&mut self) {
+        let src_page_id = self.fetch_byte();
+        let dst_page_id = self.fetch_byte();
+        debug!("copy_video_page({}, {})", src_page_id, dst_page_id);
+        self.video.copy_page(src_page_id, dst_page_id, self.variables[VM_VARIABLE_SCROLL_Y]);
+    }
+
     fn op_blit_frame_buffer(&mut self) {
         let page_id = self.fetch_byte();
         debug!("blit_frame_buffer({})", page_id);
@@ -240,7 +333,13 @@ impl VirtualMachine {
 
         self.variables[0xf7] = 0;
 
-        self.video.update_display(page_id);
+        self.video.update_display(&mut self.sys, page_id);
+    }
+
+    fn op_kill_thread(&mut self) {
+        debug!("kill_thread()");
+        self.script_ptr = self.resource.seg_bytecode + 0xffff;
+        self.goto_next_thread = true;
     }
 
     fn op_draw_string(&mut self) {
@@ -249,6 +348,13 @@ impl VirtualMachine {
         let y = self.fetch_byte() as u16;
         let color = self.fetch_byte() as u16;
         self.video.draw_string(color, x, y, string_id);
+    }
+
+    fn op_or(&mut self) {
+        let variable_id = self.fetch_byte() as usize;
+        let value = self.fetch_word();
+        debug!("or(0x{:02x}, {}", variable_id, value);
+        self.variables[variable_id] = (self.variables[variable_id] as u16 | value) as i16;
     }
 
     fn op_draw_poly_background(&mut self, val: u8) {

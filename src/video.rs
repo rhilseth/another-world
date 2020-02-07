@@ -10,14 +10,14 @@ const NUM_COLORS: usize = 16;
 
 #[derive(Copy, Clone)]
 pub struct Color {
-    r: u8,
-    g: u8,
-    b: u8,
-    a: u8,
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+    pub a: u8,
 }
 
 pub struct Palette {
-    entries: [Color; NUM_COLORS],
+    pub entries: [Color; NUM_COLORS],
 }
 
 impl Palette {
@@ -72,7 +72,7 @@ impl Polygon {
 
 #[derive(Copy, Clone)]
 pub struct Page {
-    data: [u8; VID_PAGE_SIZE],
+    pub data: [u8; VID_PAGE_SIZE],
 }
 
 impl Page {
@@ -84,7 +84,6 @@ impl Page {
 }
 
 pub struct Video {
-    sys: SDLSys,
     pages: [Page; 4],
     palette_requested: Option<Palette>,
     cur_page_ptr1: usize,
@@ -95,7 +94,6 @@ pub struct Video {
 impl Video {
     pub fn new() -> Video {
         Video {
-            sys: SDLSys { },
             pages: [Page::new(); 4],
             palette_requested: None,
             cur_page_ptr1: 2,
@@ -104,11 +102,7 @@ impl Video {
         }
     }
 
-    fn change_palette(&mut self, palette: Palette) {
-
-    }
-
-    pub fn update_display(&mut self, page_id: u8) {
+    pub fn update_display(&mut self, sys: &mut SDLSys, page_id: u8) {
         if page_id != 0xfe {
             if page_id == 0xff {
                 let tmp = self.cur_page_ptr3;
@@ -120,9 +114,9 @@ impl Video {
         }
 
         if let Some(palette) = self.palette_requested.take() {
-            self.change_palette(palette);
+            sys.set_palette(&palette);
         }
-        self.sys.update_display(&self.pages[self.cur_page_ptr2]);
+        sys.update_display(&self.pages[self.cur_page_ptr2]);
     }
 
     pub fn change_page_ptr1(&mut self, page_id: u8) {
@@ -135,6 +129,47 @@ impl Video {
         let c = (color << 4) | color;
         for b in page.data.iter_mut() {
             *b = c;
+        }
+    }
+
+    pub fn copy_page(&mut self, src_page_id: u8, dst_page_id: u8, vscroll: i16) {
+        let vscroll = vscroll as isize;
+        let mut src_page_id = src_page_id;
+        if src_page_id == dst_page_id {
+            return;
+        }
+
+        if src_page_id >= 0xfe || ((src_page_id & 0xbf) & 0x80) == 0 {
+            if src_page_id < 0xfe {
+                src_page_id = src_page_id & 0xbf;
+            }
+            let src_page = self.get_page(src_page_id);
+            let q = self.get_page_id(dst_page_id);
+            self.pages[q] = src_page;
+        } else {
+            src_page_id = src_page_id & 0xbf;
+            let src_page = self.get_page(src_page_id & 3);
+            let q = self.get_page_id(dst_page_id);
+            let mut src_i = 0;
+            let mut dst_i = 0;
+            if vscroll >= -199 && vscroll <= 199 {
+                let mut h: isize = 200;
+                if vscroll < 0 {
+                    h = h + vscroll;
+                    src_i += (- vscroll * 160) as isize;
+                } else {
+                    h = h - vscroll;
+                    dst_i += (vscroll * 160) as isize;
+                }
+                assert!(src_i > 0);
+                assert!(dst_i > 0);
+                let dst_i_end = (dst_i + h * 160) as usize;
+                let dst_i = dst_i as usize;
+                let mut dst_slice = &mut self.pages[q].data[dst_i..dst_i_end];
+                let src_i_end = (src_i + h * 160) as usize;
+                let src_i = src_i as usize;
+                dst_slice.copy_from_slice(&src_page.data[src_i..src_i_end]);
+            }
         }
     }
 
