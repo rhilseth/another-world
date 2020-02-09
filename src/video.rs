@@ -63,7 +63,7 @@ impl Polygon {
 
         let zoom = zoom as i16;
         let mut points = Vec::new();
-        for j in 0..num_points {
+        for _ in 0..num_points {
             let x = buffer.fetch_byte() as i16 * zoom / 64;
             let y = buffer.fetch_byte() as i16 * zoom / 64;
             points.push(Point { x, y });
@@ -215,7 +215,7 @@ impl Video {
             }
 
             let polygon = Polygon::read_vertices(buffer, zoom);
-            self.fill_polygon(polygon, color, zoom, point);
+            self.fill_polygon(polygon, color, point);
         } else {
             i &= 0x3f;
             if i == 2 {
@@ -266,7 +266,6 @@ impl Video {
         &mut self,
         polygon: Polygon,
         color: u8,
-        zoom: u16,
         point: Point,
     ) {
         if polygon.bbw == 0 && polygon.bbh == 1 && polygon.num_points() == 4 {
@@ -376,7 +375,6 @@ impl Video {
         }
         if cmaske != 0 {
             self.pages[self.cur_page_ptr1].data[offset] = (self.pages[self.cur_page_ptr1].data[offset] & cmaske) | (colb & 0xf0);
-            offset += 1;
         }
     }
 
@@ -415,7 +413,6 @@ impl Video {
             let p = self.pages[self.cur_page_ptr1].data[offset];
             let q = self.pages[0].data[offset];
             self.pages[self.cur_page_ptr1].data[offset] = (p & cmaske) | (q & 0xf0);
-            offset += 1;
         }
     }
 
@@ -453,7 +450,6 @@ impl Video {
         if cmaske != 0 {
             let p = self.pages[self.cur_page_ptr1].data[offset];
             self.pages[self.cur_page_ptr1].data[offset] = (p & cmaske) | 0x80;
-            offset += 1;
         }
     }
 
