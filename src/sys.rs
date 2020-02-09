@@ -1,3 +1,4 @@
+use log::debug;
 use std::{thread, time};
 
 use sdl2::pixels::{Color, Palette, PixelFormatEnum};
@@ -31,12 +32,13 @@ impl SDLSys {
         canvas.set_logical_size(SCREEN_W, SCREEN_H).expect("Expected logical size");
         SDLSys {
             sdl_context,
-            surface: Surface::new(SCREEN_W, SCREEN_H, PixelFormatEnum::RGBA32).unwrap(),
+            surface: Surface::new(SCREEN_W, SCREEN_H, PixelFormatEnum::Index8).unwrap(),
             canvas,
         }
     }
 
     pub fn set_palette(&mut self, palette: &video::Palette) {
+        debug!("set_palette()");
         let colors: Vec<Color> = palette.entries.iter()
             .map(|c| Color::RGBA(c.r, c.g, c.b, c.a)).collect();
         let sdl_palette = Palette::with_colors(&colors).unwrap();
@@ -45,6 +47,7 @@ impl SDLSys {
     }
 
     pub fn update_display(&mut self, page: &video::Page) {
+        debug!("update_display()");
         let pitch = self.surface.pitch() as usize;
         self.surface.with_lock_mut(|p| {
             for j in 0..(SCREEN_H as usize) {

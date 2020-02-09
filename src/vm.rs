@@ -137,7 +137,7 @@ impl VirtualMachine {
 
             let n = self.threads[thread_id].pc;
             if n != INACTIVE_THREAD {
-                debug!("Start of bytecode: {}", self.resource.seg_bytecode);
+                //debug!("Start of bytecode: {}", self.resource.seg_bytecode);
                 self.script_ptr = self.resource.seg_bytecode + n;
                 self.stack_ptr = 0;
                 self.goto_next_thread = false;
@@ -148,6 +148,8 @@ impl VirtualMachine {
 
                 // Save pc since it will be modified on the next iteration
                 self.threads[thread_id].pc = self.script_ptr - self.resource.seg_bytecode;
+
+                debug!("host_frame() thread_id=0x{:02x} pos=0x{:x}", thread_id, self.threads[thread_id].pc);
 
                 // if input.quit { break }....
             }
@@ -169,7 +171,7 @@ impl VirtualMachine {
 
     fn execute_thread(&mut self) {
         while !self.goto_next_thread {
-            debug!("pc: 0x{:x} Decoding opcode", self.script_ptr);
+            //debug!("pc: 0x{:x} Decoding opcode", self.script_ptr);
             let opcode = Opcode::decode(self.fetch_byte());
 
             match opcode {
@@ -181,6 +183,7 @@ impl VirtualMachine {
                 Opcode::PauseThread => self.op_pause_thread(),
                 Opcode::Jmp => self.op_jmp(),
                 Opcode::SetSetVect => self.op_set_set_vect(),
+                Opcode::Jnz => self.op_jnz(),
                 Opcode::CondJmp => self.op_cond_jmp(),
                 Opcode::SetPalette => self.op_set_palette(),
                 Opcode::SelectVideoPage => self.op_select_video_page(),
@@ -190,8 +193,10 @@ impl VirtualMachine {
                 Opcode::KillThread => self.op_kill_thread(),
                 Opcode::DrawString => self.op_draw_string(),
                 Opcode::Or => self.op_or(),
+                Opcode::PlaySound => self.op_play_sound(),
                 Opcode::UpdateMemList => self.op_update_memlist(),
                 Opcode::PlayMusic => self.op_play_music(),
+                Opcode::DrawPolySprite(val) => self.op_draw_poly_sprite(val),
                 Opcode::DrawPolyBackground(val) => self.op_draw_poly_background(val),
                 val => unimplemented!("pc 0x{:x} Unimplemented opcode: {:?}", self.script_ptr, val),
             }
@@ -262,6 +267,17 @@ impl VirtualMachine {
         self.threads[thread_id].requested_pc_offset = Some(pc_offset_requested);
     }
 
+    fn op_jnz(&mut self) {
+        let i = self.fetch_byte() as usize;
+        debug!("jnz(0x{:02x})", i);
+        self.variables[i] = self.variables[i].wrapping_sub(1);
+        if self.variables[i] != 0 {
+            self.op_jmp();
+        } else {
+            let _ = self.fetch_word();
+        }
+    }
+
     fn op_cond_jmp(&mut self) {
         let opcode = self.fetch_byte();
         let var = self.fetch_byte() as usize;
@@ -308,7 +324,7 @@ impl VirtualMachine {
         let end = start + 32;
         let palette_data = &self.resource.memory[start..end];
         let palette = Palette::from_bytes(palette_data);
-
+        self.video.palette_requested = Some(palette);
     }
 
     fn op_select_video_page(&mut self) {
@@ -371,6 +387,14 @@ impl VirtualMachine {
         self.variables[variable_id] = (self.variables[variable_id] as u16 | value) as i16;
     }
 
+    fn op_play_sound(&mut self) {
+        let _resource_id = self.fetch_word();
+        let _freq = self.fetch_byte();
+        let _vol = self.fetch_byte();
+        let _channel = self.fetch_byte();
+        warn!("Not implemented");
+    }
+
     fn op_update_memlist(&mut self) {
         let resource_id = self.fetch_word();
         debug!("update_memlist({})", resource_id);
@@ -389,10 +413,66 @@ impl VirtualMachine {
     }
 
     fn op_play_music(&mut self) {
-        let resource_num = self.fetch_word();
-        let delay = self.fetch_word();
-        let pos = self.fetch_byte();
+        let _resource_id = self.fetch_word();
+        let _delay = self.fetch_word();
+        let _pos = self.fetch_byte();
         warn!("play_music() not implemented");
+    }
+
+    fn op_draw_poly_sprite(&mut self, val: u8) {
+        let offset = (self.fetch_word() * 2) as usize;
+        let mut x = self.fetch_byte() as i16;
+        self.video_buffer_seg = VideoBufferSeg::Cinematic;
+
+        if val & 0x20 == 0 { // bit 0010 0000
+            if val & 0x10 == 0 { // bit 0001 000
+                x = (x << 8) | self.fetch_byte() as i16;
+            } else {
+                x = self.variables[x as usize];
+            }
+        } else {
+            if val & 0x10 > 0 { // bit 0001 0000
+                x += 0x100;
+            }
+        }
+
+        let mut y = self.fetch_byte() as i16;
+        if val & 8 == 0 { // bit 0000 1000
+            if val & 4 == 0 { // bit 0000 0100
+                y = (y << 8) | self.fetch_byte() as i16;
+            } else {
+                y = self.variables[y as usize];
+            }
+        }
+
+        let mut zoom = self.fetch_byte() as u16;
+
+        if val & 2 == 0 { // bit 0000 0010
+            if val & 1 == 0 { // bit 0000 0001
+                self.script_ptr -= 1;
+                zoom = 0x40;
+            } else {
+                zoom = self.variables[zoom as usize] as u16;
+            }
+        } else {
+            if val & 1 > 0 { // bit 0000 0001
+                self.video_buffer_seg = VideoBufferSeg::Video2;
+                self.script_ptr -= 1;
+                zoom = 0x40;
+            }
+        }
+        debug!("draw_poly_sprite() offset=0x{:x}, x={}, y={}, zoom={}", offset, x, y, zoom);
+        let segment = match self.video_buffer_seg {
+            VideoBufferSeg::Cinematic => self.resource.seg_cinematic,
+            VideoBufferSeg::Video2 => self.resource.seg_video2,
+        };
+        let mut buffer = Buffer::with_offset(
+            &self.resource.memory[segment..],
+            offset
+        );
+        let color = 0xff;
+        let point = Point { x, y };
+        self.video.read_and_draw_polygon(&mut buffer, color, zoom, point);
     }
 
     fn op_draw_poly_background(&mut self, val: u8) {
