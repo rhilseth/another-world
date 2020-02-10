@@ -120,6 +120,7 @@ impl Video {
     }
 
     pub fn update_display(&mut self, sys: &mut SDLSys, page_id: u8) {
+        debug!("update_display({})", page_id);
         if page_id != 0xfe {
             if page_id == 0xff {
                 let tmp = self.cur_page_ptr3;
@@ -137,10 +138,12 @@ impl Video {
     }
 
     pub fn change_page_ptr1(&mut self, page_id: u8) {
+        debug!("change_page_ptr1({})", page_id);
         self.cur_page_ptr1 = self.get_page_id(page_id);
     }
 
     pub fn fill_video_page(&self, page_id: u8, color: u8) {
+        debug!("fill_page({}, {})", page_id, color);
         let mut page = self.get_page(page_id);
 
         let c = (color << 4) | color;
@@ -150,6 +153,7 @@ impl Video {
     }
 
     pub fn copy_page(&mut self, src_page_id: u8, dst_page_id: u8, vscroll: i16) {
+        debug!("copy_page({}, {})", src_page_id, dst_page_id);
         let vscroll = vscroll as isize;
         let mut src_page_id = src_page_id;
         if src_page_id == dst_page_id {
@@ -238,7 +242,7 @@ impl Video {
         pt.y = pt.y.wrapping_sub((buffer.fetch_byte() as i32 * zoom32 / 64) as i16);
 
         let children = buffer.fetch_byte() as usize;
-        for _ in 0..children {
+        for _ in 0..=children {
             let mut offset = buffer.fetch_word() as usize;
 
             let x = (buffer.fetch_byte() as i32 * zoom32 / 64) as i16;
