@@ -61,11 +61,11 @@ impl Polygon {
         let num_points = buffer.fetch_byte() as usize;
         assert!((num_points & 1) == 0 && num_points < MAX_POINTS);
 
-        let zoom = zoom as i16;
+        let zoom = zoom as i32;
         let mut points = Vec::new();
         for _ in 0..num_points {
-            let x = buffer.fetch_byte() as i16 * zoom / 64;
-            let y = buffer.fetch_byte() as i16 * zoom / 64;
+            let x = (buffer.fetch_byte() as i32 * zoom / 64) as i16;
+            let y = (buffer.fetch_byte() as i32 * zoom / 64) as i16;
             points.push(Point { x, y });
         }
         Polygon { bbw, bbh, points }
@@ -233,16 +233,17 @@ impl Video {
         point: Point
     ) {
         let mut pt = point;
-        pt.x -= buffer.fetch_byte() as i16 * zoom as i16 / 64;
-        pt.y -= buffer.fetch_byte() as i16 * zoom as i16 / 64;
+        let zoom32 = zoom as i32;
+        pt.x = pt.x.wrapping_sub((buffer.fetch_byte() as i32 * zoom32 / 64) as i16);
+        pt.y = pt.y.wrapping_sub((buffer.fetch_byte() as i32 * zoom32 / 64) as i16);
 
         let children = buffer.fetch_byte() as usize;
         for _ in 0..children {
             let mut offset = buffer.fetch_word() as usize;
 
-            let x = buffer.fetch_byte() as i16 * zoom as i16 / 64;
-            let y = buffer.fetch_byte() as i16 * zoom as i16 / 64;
-            let po = Point { x: pt.x + x, y: pt.y + y };
+            let x = (buffer.fetch_byte() as i32 * zoom32 / 64) as i16;
+            let y = (buffer.fetch_byte() as i32 * zoom32 / 64) as i16;
+            let po = Point { x: pt.x.wrapping_add(x), y: pt.y.wrapping_add(y) };
 
             let mut color = 0xff;
             let _bp = offset;
