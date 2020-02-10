@@ -182,7 +182,8 @@ impl Resource {
     }
 
     fn read_bank(mem_entry: &MemEntry) -> std::io::Result<Bank> {
-        let file_name = format!("data/Bank{:02}", mem_entry.bank_id);
+        let file_name = format!("data/Bank{:02x}", mem_entry.bank_id);
+        warn!("Reading bank: {}", file_name);
         let mut file = File::open(file_name)?;
         file.seek(SeekFrom::Start(mem_entry.bank_offset as u64))?;
 
