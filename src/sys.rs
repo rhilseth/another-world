@@ -13,7 +13,6 @@ const SCREEN_H: u32 = 200;
 const SOUND_SAMPLE_RATE: u16 = 22050;
 
 pub struct SDLSys {
-    sdl_context: sdl2::Sdl,
     surface: Surface<'static>,
     canvas: WindowCanvas,
 }
@@ -31,7 +30,6 @@ impl SDLSys {
         let mut canvas = window.into_canvas().build().expect("Expected canvas");
         canvas.set_logical_size(SCREEN_W, SCREEN_H).expect("Expected logical size");
         SDLSys {
-            sdl_context,
             surface: Surface::new(SCREEN_W, SCREEN_H, PixelFormatEnum::Index8).unwrap(),
             canvas,
         }

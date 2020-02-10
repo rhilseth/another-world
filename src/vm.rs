@@ -186,6 +186,7 @@ impl VirtualMachine {
                 Opcode::Jnz => self.op_jnz(),
                 Opcode::CondJmp => self.op_cond_jmp(),
                 Opcode::SetPalette => self.op_set_palette(),
+                Opcode::ResetThread => self.op_reset_thread(),
                 Opcode::SelectVideoPage => self.op_select_video_page(),
                 Opcode::FillVideoPage => self.op_fill_video_page(),
                 Opcode::CopyVideoPage => self.op_copy_video_page(),
@@ -327,6 +328,41 @@ impl VirtualMachine {
         self.video.palette_requested = Some(palette);
     }
 
+    fn op_reset_thread(&mut self) {
+        let thread_id = self.fetch_byte() as usize;
+        let mut i = self.fetch_byte() as usize;
+
+        i &= NUM_THREADS - 1;
+
+        if i < thread_id {
+            warn!("reset_thread() n < 0");
+            return;
+        }
+
+        let n = i - thread_id + 1;
+        let a = self.fetch_byte();
+
+        debug!("reset_thread({}, {}, {}", thread_id, i, a);
+
+        match a {
+            0 | 1 => {
+                let val = a != 0;
+                for thread in thread_id..n {
+                    self.threads[thread].is_channel_active_requested = val;
+                }
+
+            }
+            2 => {
+                for thread in thread_id..n {
+                    self.threads[thread].requested_pc_offset = Some(SET_INACTIVE_THREAD);
+                }
+            }
+            _ => {
+                panic!("reset_thread() Invalid value for a {}", a);
+            }
+        }
+    }
+
     fn op_select_video_page(&mut self) {
         let frame_buffer_id = self.fetch_byte();
         debug!("select_video_page({})", frame_buffer_id);
@@ -392,7 +428,7 @@ impl VirtualMachine {
         let _freq = self.fetch_byte();
         let _vol = self.fetch_byte();
         let _channel = self.fetch_byte();
-        warn!("Not implemented");
+        warn!("play_sound() not implemented");
     }
 
     fn op_update_memlist(&mut self) {
