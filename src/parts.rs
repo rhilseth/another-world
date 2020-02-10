@@ -19,7 +19,7 @@ pub const PARTS: [Part; 10] = [
 ];
 
 pub const GAME_PART1: u16 = 0x3E80;
-pub const GAME_PART2: u16 = 0x3E81;   //Introductino
+pub const GAME_PART2: u16 = 0x3E81;   //Introduction
 pub const _GAME_PART3: u16 = 0x3E82;
 pub const _GAME_PART4: u16 = 0x3E83;   //Wake up in the suspended jail
 pub const _GAME_PART5: u16 = 0x3E84;

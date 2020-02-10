@@ -10,7 +10,7 @@ use crate::video;
 
 const SCREEN_W: u32 = 320;
 const SCREEN_H: u32 = 200;
-const SOUND_SAMPLE_RATE: u16 = 22050;
+const _SOUND_SAMPLE_RATE: u16 = 22050;
 
 pub struct SDLSys {
     surface: Surface<'static>,
@@ -22,7 +22,7 @@ impl SDLSys {
         let video_subsystem = sdl_context.video().unwrap();
 
         let window = video_subsystem
-            .window("Another world", 640, 400)
+            .window("Another world", 1024, 770)
             .position_centered()
             .build()
             .unwrap();
