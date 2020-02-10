@@ -142,9 +142,10 @@ impl Video {
         self.cur_page_ptr1 = self.get_page_id(page_id);
     }
 
-    pub fn fill_video_page(&self, page_id: u8, color: u8) {
+    pub fn fill_video_page(&mut self, page_id: u8, color: u8) {
         debug!("fill_page({}, {})", page_id, color);
-        let mut page = self.get_page(page_id);
+        let page_id = self.get_page_id(page_id);
+        let page = &mut self.pages[page_id];
 
         let c = (color << 4) | color;
         for b in page.data.iter_mut() {
@@ -242,6 +243,7 @@ impl Video {
         pt.y = pt.y.wrapping_sub((buffer.fetch_byte() as i32 * zoom32 / 64) as i16);
 
         let children = buffer.fetch_byte() as usize;
+        debug!("read_and_draw_polygon_hierarchy children={}", children);
         for _ in 0..=children {
             let mut offset = buffer.fetch_word() as usize;
 
