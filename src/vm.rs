@@ -177,6 +177,7 @@ impl VirtualMachine {
             match opcode {
                 Opcode::MovConst => self.op_mov_const(),
                 Opcode::Mov => self.op_mov(),
+                Opcode::Add => self.op_add(),
                 Opcode::AddConst => self.op_add_const(),
                 Opcode::Call => self.op_call(),
                 Opcode::Ret => self.op_ret(),
@@ -193,13 +194,17 @@ impl VirtualMachine {
                 Opcode::BlitFrameBuffer => self.op_blit_frame_buffer(),
                 Opcode::KillThread => self.op_kill_thread(),
                 Opcode::DrawString => self.op_draw_string(),
+                Opcode::Sub => self.op_sub(),
+                Opcode::And => self.op_and(),
                 Opcode::Or => self.op_or(),
+                Opcode::Shl => self.op_shl(),
+                Opcode::Shr => self.op_shr(),
                 Opcode::PlaySound => self.op_play_sound(),
                 Opcode::UpdateMemList => self.op_update_memlist(),
                 Opcode::PlayMusic => self.op_play_music(),
                 Opcode::DrawPolySprite(val) => self.op_draw_poly_sprite(val),
                 Opcode::DrawPolyBackground(val) => self.op_draw_poly_background(val),
-                val => unimplemented!("pc 0x{:x} Unimplemented opcode: {:?}", self.script_ptr, val),
+                //val => unimplemented!("pc 0x{:x} Unimplemented opcode: {:?}", self.script_ptr, val),
             }
         }
     }
@@ -218,6 +223,14 @@ impl VirtualMachine {
         let src_variable_id = self.fetch_byte() as usize;
         debug!("mov(0x{:02x}, 0x{:02x})", dst_variable_id, src_variable_id);
         self.variables[dst_variable_id] = self.variables[src_variable_id];
+    }
+
+    fn op_add(&mut self) {
+        let dst_variable_id = self.fetch_byte() as usize;
+        let src_variable_id = self.fetch_byte() as usize;
+        debug!("add(0x{:02x}, 0x{:02x})", dst_variable_id, src_variable_id);
+        self.variables[dst_variable_id] = self.variables[dst_variable_id]
+            .wrapping_add(self.variables[src_variable_id]);
     }
 
     fn op_add_const(&mut self) {
@@ -416,11 +429,39 @@ impl VirtualMachine {
         self.video.draw_string(color, x, y, string_id);
     }
 
+    fn op_sub(&mut self) {
+        let i = self.fetch_byte() as usize;
+        let j = self.fetch_byte() as usize;
+        debug!("sub(0x{:02x}, 0x{:02x})", i, j);
+        self.variables[i] = self.variables[i].wrapping_sub(self.variables[j]);
+    }
+
+    fn op_and(&mut self) {
+        let variable_id = self.fetch_byte() as usize;
+        let value = self.fetch_word() as i16;
+        debug!("and(0x{:02x}, {}", variable_id, value);
+        self.variables[variable_id] = self.variables[variable_id] & value;
+    }
+
     fn op_or(&mut self) {
         let variable_id = self.fetch_byte() as usize;
-        let value = self.fetch_word();
+        let value = self.fetch_word() as i16;
         debug!("or(0x{:02x}, {}", variable_id, value);
-        self.variables[variable_id] = (self.variables[variable_id] as u16 | value) as i16;
+        self.variables[variable_id] = self.variables[variable_id] | value;
+    }
+
+    fn op_shl(&mut self) {
+        let variable_id = self.fetch_byte() as usize;
+        let left_shift = self.fetch_word();
+        debug!("shl(0x{:02x}, {}", variable_id, left_shift);
+        self.variables[variable_id] = ((self.variables[variable_id] as u16) << left_shift) as i16;
+    }
+
+    fn op_shr(&mut self) {
+        let variable_id = self.fetch_byte() as usize;
+        let right_shift = self.fetch_word();
+        debug!("shl(0x{:02x}, {}", variable_id, right_shift);
+        self.variables[variable_id] = ((self.variables[variable_id] as u16) >> right_shift) as i16;
     }
 
     fn op_play_sound(&mut self) {
