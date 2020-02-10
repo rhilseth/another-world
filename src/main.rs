@@ -36,8 +36,8 @@ fn main() -> std::io::Result<()> {
                 } => break 'outer,
                 _ => {}
             }
-            engine.run();
         }
+        engine.run();
     }
     Ok(())
 }
