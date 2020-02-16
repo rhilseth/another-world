@@ -2,6 +2,7 @@ use log::{debug, warn};
 use std::cmp;
 
 use crate::buffer::Buffer;
+use crate::font::FONT;
 use crate::strings::STRINGS_TABLE_ENG;
 use crate::sys::SDLSys;
 
@@ -191,10 +192,21 @@ impl Video {
         }
     }
 
-    pub fn draw_string(&self, color: u16, x: u16, y: u16, string_id: u16) {
+    pub fn draw_string(&mut self, color: u8, x: u16, y: u16, string_id: u16) {
         debug!("DrawString(0x{:04x}, {}, {}, {})", string_id, x, y, color);
         if let Some(entry) = STRINGS_TABLE_ENG.get(&string_id) {
-            warn!("DrawString(): {}", entry);
+            let x_origin = x;
+            let mut x = x;
+            let mut y = y;
+            for c in entry.chars() {
+                if c == '\n' {
+                    y += 8;
+                    x = x_origin;
+                    continue;
+                }
+                self.draw_char(c, x, y, color, self.cur_page_ptr1);
+                x += 1;
+            }
         } else {
             warn!("String with id 0x{:03x} not found", string_id);
         }
@@ -474,6 +486,48 @@ impl Video {
             }
             let b = self.pages[self.cur_page_ptr1].data[offset];
             self.pages[self.cur_page_ptr1].data[offset] = (b & cmasko) | (colb & cmaskn);
+        }
+    }
+
+    fn draw_char(
+        &mut self,
+        character: char,
+        x: u16,
+        y: u16,
+        color: u8,
+        page_off: usize
+    ) {
+        if x <= 39 && y <= 192 {
+            let offset = (character as u8 - ' ' as u8) as usize * 8;
+
+            let font_char = &FONT[offset..offset + 8];
+
+            let x = x as usize;
+            let y = y as usize;
+            let mut p = x * 4 + y * 160;
+
+            let buffer = &mut self.pages[page_off].data;
+
+            for j in 0..8 {
+                let mut ch = font_char[j];
+                for i in 0..4 {
+                    let b = &buffer[p + i];
+                    let mut cmask = 0xff;
+                    let mut colb = 0;
+                    if ch & 0x80 > 0 {
+                        colb |= color << 4;
+                        cmask &= 0x0f;
+                    }
+                    ch <<= 1;
+                    if ch & 0x80 > 0 {
+                        colb |= color;
+                        cmask &= 0xf0;
+                    }
+                    ch <<= 1;
+                    buffer[p + i] = (b & cmask) | colb;
+                }
+                p += 160;
+            }
         }
     }
 

@@ -444,7 +444,7 @@ impl VirtualMachine {
         let string_id = self.fetch_word();
         let x = self.fetch_byte() as u16;
         let y = self.fetch_byte() as u16;
-        let color = self.fetch_byte() as u16;
+        let color = self.fetch_byte();
         self.video.draw_string(color, x, y, string_id);
     }
 
