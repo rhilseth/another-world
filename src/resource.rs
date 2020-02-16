@@ -143,7 +143,10 @@ impl Resource {
 
         self.seg_palettes = self.mem_list[palette_index].buf_ptr;
         self.seg_bytecode = self.mem_list[code_index].buf_ptr;
-        debug!("seg_bytecode: 0x{:04x} value: {:x}", self.seg_bytecode, self.memory[self.seg_bytecode]);
+        debug!(
+            "seg_bytecode: 0x{:04x} value: {:x}",
+            self.seg_bytecode, self.memory[self.seg_bytecode]
+        );
         self.seg_cinematic = self.mem_list[video_cinematic_index].buf_ptr;
 
         if let Some(video2_index) = video2_index {
@@ -169,7 +172,7 @@ impl Resource {
                 EntryType::PolyAnim | EntryType::Unknown(_) => {
                     entry.state = MemEntryState::NotNeeded;
                 }
-                _ => { }
+                _ => {}
             }
         }
         self.script_cur_ptr = self.script_bak_ptr;
@@ -255,7 +258,9 @@ impl Resource {
     }
 
     fn load_marked_as_needed(&mut self) {
-        let mut to_load: Vec<&mut MemEntry> = self.mem_list.iter_mut()
+        let mut to_load: Vec<&mut MemEntry> = self
+            .mem_list
+            .iter_mut()
             .filter(|e| e.state == MemEntryState::LoadMe)
             .collect();
 

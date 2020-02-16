@@ -1,16 +1,15 @@
 use std::sync::{Arc, RwLock};
-use std::time::Duration;
 use std::thread::sleep;
+use std::time::Duration;
 
 use log::debug;
 use sdl2::audio::AudioCallback;
 
 pub const FREQUENCE_TABLE: [u16; 40] = [
-    0x0CFF, 0x0DC3, 0x0E91, 0x0F6F, 0x1056, 0x114E, 0x1259, 0x136C,
-    0x149F, 0x15D9, 0x1726, 0x1888, 0x19FD, 0x1B86, 0x1D21, 0x1EDE,
-    0x20AB, 0x229C, 0x24B3, 0x26D7, 0x293F, 0x2BB2, 0x2E4C, 0x3110,
-    0x33FB, 0x370D, 0x3A43, 0x3DDF, 0x4157, 0x4538, 0x4998, 0x4DAE,
-    0x5240, 0x5764, 0x5C9A, 0x61C8, 0x6793, 0x6E19, 0x7485, 0x7BBD,
+    0x0CFF, 0x0DC3, 0x0E91, 0x0F6F, 0x1056, 0x114E, 0x1259, 0x136C, 0x149F, 0x15D9, 0x1726, 0x1888,
+    0x19FD, 0x1B86, 0x1D21, 0x1EDE, 0x20AB, 0x229C, 0x24B3, 0x26D7, 0x293F, 0x2BB2, 0x2E4C, 0x3110,
+    0x33FB, 0x370D, 0x3A43, 0x3DDF, 0x4157, 0x4538, 0x4998, 0x4DAE, 0x5240, 0x5764, 0x5C9A, 0x61C8,
+    0x6793, 0x6E19, 0x7485, 0x7BBD,
 ];
 
 const NUM_CHANNELS: usize = 4;
@@ -35,7 +34,12 @@ pub struct MixerChunk {
 impl MixerChunk {
     pub fn new(data: &[u8], len: usize, loop_len: usize) -> MixerChunk {
         let loop_pos = if loop_len > 0 { len } else { 0 };
-        MixerChunk { data: data.to_vec(), len, loop_len, loop_pos }
+        MixerChunk {
+            data: data.to_vec(),
+            len,
+            loop_len,
+            loop_pos,
+        }
     }
 }
 
@@ -58,10 +62,8 @@ impl Mixer {
         volume: u8,
     ) {
         //debug!("mixer chunk {}, {}, {}", mixer_chunk.len, mixer_chunk.loop_len, mixer_chunk.loop_pos);
-        self.channels[channel as usize] = Some(
-            MixerChannel::new(volume, mixer_chunk, frequency.into())
-        );
-
+        self.channels[channel as usize] =
+            Some(MixerChannel::new(volume, mixer_chunk, frequency.into()));
     }
 
     pub fn stop_channel(&mut self, channel: u8) {
@@ -125,7 +127,7 @@ impl AudioCallback for MixerAudio {
                     assert!(p2 < channel.chunk.data.len());
                     let b1 = channel.chunk.data[p1] as i8;
                     let b2 = channel.chunk.data[p2] as i8;
-                    let b = ((b1 as i16* (0xff - ilc) + b2 as i16 * ilc) >> 8) as i8;
+                    let b = ((b1 as i16 * (0xff - ilc) + b2 as i16 * ilc) >> 8) as i8;
 
                     *s = add_clamp(*s as i16, b as i16 * channel.volume as i16 / 0x40);
                     //debug!("j: {}, p1: {}, b1: {}, p2: {}, b2: {}, b: {}, sample: {}", j, p1, b1, p2, b2, b, *s);
@@ -143,11 +145,7 @@ struct MixerChannel {
 }
 
 impl MixerChannel {
-    pub fn new(
-        volume: u8,
-        chunk: MixerChunk,
-        frequency: u32
-    ) -> MixerChannel {
+    pub fn new(volume: u8, chunk: MixerChunk, frequency: u32) -> MixerChannel {
         //debug!("freq: {}, outputSampleRate(): 22050, chunkInc: {}", frequency, ((frequency << 8) / 22050));
         MixerChannel {
             volume,

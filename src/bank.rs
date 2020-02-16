@@ -1,6 +1,6 @@
 use std::mem;
 
-use byteorder::{ByteOrder, BigEndian};
+use byteorder::{BigEndian, ByteOrder};
 use log::debug;
 
 pub enum Bank {
@@ -147,4 +147,3 @@ impl<'a> Unpacker<'a> {
         new_output
     }
 }
-

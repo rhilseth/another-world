@@ -26,7 +26,6 @@ const VM_VARIABLE_RANDOM_SEED: usize = 0x3c;
 const VM_VARIABLE_SCROLL_Y: usize = 0xf9;
 const VM_VARIABLE_PAUSE_SLICES: usize = 0xff;
 
-
 #[derive(Copy, Clone)]
 struct Thread {
     pc: usize,
@@ -163,11 +162,13 @@ impl VirtualMachine {
                 // Save pc since it will be modified on the next iteration
                 self.threads[thread_id].pc = self.script_ptr - self.resource.seg_bytecode;
 
-                debug!("host_frame() thread_id=0x{:02x} pos=0x{:x}", thread_id, self.threads[thread_id].pc);
+                debug!(
+                    "host_frame() thread_id=0x{:02x} pos=0x{:x}",
+                    thread_id, self.threads[thread_id].pc
+                );
 
                 // if input.quit { break }....
             }
-
         }
     }
 
@@ -242,8 +243,8 @@ impl VirtualMachine {
         let dst_variable_id = self.fetch_byte() as usize;
         let src_variable_id = self.fetch_byte() as usize;
         debug!("add(0x{:02x}, 0x{:02x})", dst_variable_id, src_variable_id);
-        self.variables[dst_variable_id] = self.variables[dst_variable_id]
-            .wrapping_add(self.variables[src_variable_id]);
+        self.variables[dst_variable_id] =
+            self.variables[dst_variable_id].wrapping_add(self.variables[src_variable_id]);
     }
 
     fn op_add_const(&mut self) {
@@ -252,7 +253,6 @@ impl VirtualMachine {
         let value = self.fetch_word();
         debug!("add_const(0x{:02x}, {})", variable_id, value);
         self.variables[variable_id] = self.variables[variable_id].wrapping_add(value as i16);
-
     }
 
     fn op_call(&mut self) {
@@ -290,7 +290,10 @@ impl VirtualMachine {
     fn op_set_set_vect(&mut self) {
         let thread_id = self.fetch_byte() as usize;
         let pc_offset_requested = self.fetch_word() as usize;
-        debug!("set_set_vect(0x{:02x}, 0x{:x})", thread_id, pc_offset_requested);
+        debug!(
+            "set_set_vect(0x{:02x}, 0x{:x})",
+            thread_id, pc_offset_requested
+        );
         self.threads[thread_id].requested_pc_offset = Some(pc_offset_requested);
     }
 
@@ -376,7 +379,6 @@ impl VirtualMachine {
                 for thread in thread_id..n {
                     self.threads[thread].is_channel_active_requested = val;
                 }
-
             }
             2 => {
                 for thread in thread_id..n {
@@ -406,7 +408,11 @@ impl VirtualMachine {
         let src_page_id = self.fetch_byte();
         let dst_page_id = self.fetch_byte();
         debug!("copy_video_page({}, {})", src_page_id, dst_page_id);
-        self.video.copy_page(src_page_id, dst_page_id, self.variables[VM_VARIABLE_SCROLL_Y]);
+        self.video.copy_page(
+            src_page_id,
+            dst_page_id,
+            self.variables[VM_VARIABLE_SCROLL_Y],
+        );
     }
 
     fn op_blit_frame_buffer(&mut self) {
@@ -482,7 +488,10 @@ impl VirtualMachine {
         let freq = self.fetch_byte();
         let vol = self.fetch_byte();
         let channel = self.fetch_byte();
-        debug!("play_sound(0x{:x}, {}, {}, {})", resource_id, freq, vol, channel);
+        debug!(
+            "play_sound(0x{:x}, {}, {}, {})",
+            resource_id, freq, vol, channel
+        );
         self.play_sound_resource(resource_id, freq, vol, channel);
     }
 
@@ -501,7 +510,10 @@ impl VirtualMachine {
             } else {
                 self.resource.load_memory_entry(resource_id);
                 if self.resource.copy_vid_ptr {
-                    debug!("update_memlist copy_vid_ptr: {}", self.resource.video_page_data().len());
+                    debug!(
+                        "update_memlist copy_vid_ptr: {}",
+                        self.resource.video_page_data().len()
+                    );
                     self.resource.copy_vid_ptr = false;
                 }
             }
@@ -520,21 +532,26 @@ impl VirtualMachine {
         let mut x = self.fetch_byte() as i16;
         self.video_buffer_seg = VideoBufferSeg::Cinematic;
 
-        if val & 0x20 == 0 { // bit 0010 0000
-            if val & 0x10 == 0 { // bit 0001 000
+        if val & 0x20 == 0 {
+            // bit 0010 0000
+            if val & 0x10 == 0 {
+                // bit 0001 000
                 x = (x << 8) | self.fetch_byte() as i16;
             } else {
                 x = self.variables[x as usize];
             }
         } else {
-            if val & 0x10 > 0 { // bit 0001 0000
+            if val & 0x10 > 0 {
+                // bit 0001 0000
                 x += 0x100;
             }
         }
 
         let mut y = self.fetch_byte() as i16;
-        if val & 8 == 0 { // bit 0000 1000
-            if val & 4 == 0 { // bit 0000 0100
+        if val & 8 == 0 {
+            // bit 0000 1000
+            if val & 4 == 0 {
+                // bit 0000 0100
                 y = (y << 8) | self.fetch_byte() as i16;
             } else {
                 y = self.variables[y as usize];
@@ -543,32 +560,36 @@ impl VirtualMachine {
 
         let mut zoom = self.fetch_byte() as u16;
 
-        if val & 2 == 0 { // bit 0000 0010
-            if val & 1 == 0 { // bit 0000 0001
+        if val & 2 == 0 {
+            // bit 0000 0010
+            if val & 1 == 0 {
+                // bit 0000 0001
                 self.script_ptr -= 1;
                 zoom = 0x40;
             } else {
                 zoom = self.variables[zoom as usize] as u16;
             }
         } else {
-            if val & 1 > 0 { // bit 0000 0001
+            if val & 1 > 0 {
+                // bit 0000 0001
                 self.video_buffer_seg = VideoBufferSeg::Video2;
                 self.script_ptr -= 1;
                 zoom = 0x40;
             }
         }
-        debug!("draw_poly_sprite() offset=0x{:x}, x={}, y={}, zoom={}", offset, x, y, zoom);
+        debug!(
+            "draw_poly_sprite() offset=0x{:x}, x={}, y={}, zoom={}",
+            offset, x, y, zoom
+        );
         let segment = match self.video_buffer_seg {
             VideoBufferSeg::Cinematic => self.resource.seg_cinematic,
             VideoBufferSeg::Video2 => self.resource.seg_video2,
         };
-        let mut buffer = Buffer::with_offset(
-            &self.resource.memory[segment..],
-            offset
-        );
+        let mut buffer = Buffer::with_offset(&self.resource.memory[segment..], offset);
         let color = 0xff;
         let point = Point { x, y };
-        self.video.read_and_draw_polygon(&mut buffer, color, zoom, point);
+        self.video
+            .read_and_draw_polygon(&mut buffer, color, zoom, point);
     }
 
     fn op_draw_poly_background(&mut self, val: u8) {
@@ -592,16 +613,18 @@ impl VirtualMachine {
             val, offset, x, y
         );
 
-        let mut buffer = Buffer::with_offset(
-            &self.resource.memory[self.resource.seg_cinematic..],
-            offset
-        );
+        let mut buffer =
+            Buffer::with_offset(&self.resource.memory[self.resource.seg_cinematic..], offset);
         let point = Point { x, y };
-        self.video.read_and_draw_polygon(&mut buffer, COLOR_BLACK, DEFAULT_ZOOM, point);
+        self.video
+            .read_and_draw_polygon(&mut buffer, COLOR_BLACK, DEFAULT_ZOOM, point);
     }
 
     fn play_sound_resource(&mut self, resource_id: u16, freq: u8, vol: u8, channel: u8) {
-        debug!("play_sound_resource(0x{:x}, {}, {}, {})", resource_id, freq, vol, channel);
+        debug!(
+            "play_sound_resource(0x{:x}, {}, {}, {})",
+            resource_id, freq, vol, channel
+        );
         let mut write_guard = loop {
             if let Ok(write_guard) = self.mixer.write() {
                 break write_guard;
@@ -615,7 +638,6 @@ impl VirtualMachine {
                 let frequence = mixer::FREQUENCE_TABLE[freq as usize];
                 let vol = cmp::min(vol, 0x3f);
                 write_guard.play_channel(channel & 3, mixer_chunk, frequence, vol);
-
             }
         }
     }

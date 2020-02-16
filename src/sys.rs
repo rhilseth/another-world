@@ -1,6 +1,6 @@
 use log::debug;
-use std::{thread, time};
 use std::sync::{Arc, RwLock};
+use std::{thread, time};
 
 use sdl2::audio::{AudioDevice, AudioSpecDesired};
 use sdl2::pixels::{Color, Palette, PixelFormatEnum};
@@ -33,7 +33,9 @@ impl SDLSys {
             .unwrap();
 
         let mut canvas = window.into_canvas().build().expect("Expected canvas");
-        canvas.set_logical_size(SCREEN_W, SCREEN_H).expect("Expected logical size");
+        canvas
+            .set_logical_size(SCREEN_W, SCREEN_H)
+            .expect("Expected logical size");
         SDLSys {
             sdl_context,
             surface: Surface::new(SCREEN_W, SCREEN_H, PixelFormatEnum::Index8).unwrap(),
@@ -44,8 +46,11 @@ impl SDLSys {
 
     pub fn set_palette(&mut self, palette: &video::Palette) {
         debug!("set_palette()");
-        let colors: Vec<Color> = palette.entries.iter()
-            .map(|c| Color::RGBA(c.r, c.g, c.b, c.a)).collect();
+        let colors: Vec<Color> = palette
+            .entries
+            .iter()
+            .map(|c| Color::RGBA(c.r, c.g, c.b, c.a))
+            .collect();
         let sdl_palette = Palette::with_colors(&colors).unwrap();
 
         self.surface.set_palette(&sdl_palette).unwrap();
@@ -65,9 +70,13 @@ impl SDLSys {
             }
         });
         let texture_creator = self.canvas.texture_creator();
-        let texture = texture_creator.create_texture_from_surface(&*self.surface).unwrap();
+        let texture = texture_creator
+            .create_texture_from_surface(&*self.surface)
+            .unwrap();
         self.canvas.clear();
-        self.canvas.copy(&texture, None, Some(Rect::new(0, 0, SCREEN_W, SCREEN_H))).unwrap();
+        self.canvas
+            .copy(&texture, None, Some(Rect::new(0, 0, SCREEN_W, SCREEN_H)))
+            .unwrap();
         self.canvas.present();
     }
 
@@ -90,10 +99,12 @@ impl SDLSys {
             samples: None,
         };
 
-        let device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
-            debug!("Actual spec: {:?}", spec);
-            mixer::MixerAudio(audio)
-        }).unwrap();
+        let device = audio_subsystem
+            .open_playback(None, &desired_spec, |spec| {
+                debug!("Actual spec: {:?}", spec);
+                mixer::MixerAudio(audio)
+            })
+            .unwrap();
 
         device.resume();
         self.audio_device = Some(device);

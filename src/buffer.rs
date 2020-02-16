@@ -7,10 +7,7 @@ pub struct Buffer<'a> {
 
 impl<'a> Buffer<'a> {
     pub fn with_offset(data: &[u8], offset: usize) -> Buffer {
-        Buffer {
-            data,
-            offset,
-        }
+        Buffer { data, offset }
     }
 
     pub fn fetch_byte(&mut self) -> u8 {
@@ -25,4 +22,3 @@ impl<'a> Buffer<'a> {
         result
     }
 }
-

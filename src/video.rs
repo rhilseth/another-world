@@ -23,7 +23,12 @@ pub struct Palette {
 
 impl Palette {
     pub fn from_bytes(buffer: &[u8]) -> Palette {
-        let mut entries = [Color { r: 0, g: 0, b: 0, a: 0 }; NUM_COLORS];
+        let mut entries = [Color {
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 0,
+        }; NUM_COLORS];
         for i in 0..NUM_COLORS {
             let c1 = buffer[i * 2];
             let c2 = buffer[i * 2 + 1];
@@ -31,12 +36,7 @@ impl Palette {
             let g = (((c2 & 0xf0) >> 2) | ((c2 & 0xf0) >> 6)) << 2;
             let b = (((c2 & 0x0f) >> 2) | ((c2 & 0x0f) << 2)) << 2;
             let a = 0xff;
-            entries[i] = Color {
-                r,
-                g,
-                b,
-                a,
-            };
+            entries[i] = Color { r, g, b, a };
         }
         Palette { entries }
     }
@@ -91,11 +91,7 @@ impl Page {
 
 fn calc_step(p1: &Point, p2: &Point) -> (i32, u16) {
     let dy = p2.y as i32 - p1.y as i32;
-    let mul = if dy == 0 {
-        0x4000
-    } else {
-        0x4000 / dy
-    };
+    let mul = if dy == 0 { 0x4000 } else { 0x4000 / dy };
     let step = (p2.x as i32 - p1.x as i32) * mul * 4;
     (step, dy as u16)
 }
@@ -178,7 +174,7 @@ impl Video {
                 let mut h: isize = 200;
                 if vscroll < 0 {
                     h = h + vscroll;
-                    src_i += (- vscroll * 160) as isize;
+                    src_i += (-vscroll * 160) as isize;
                 } else {
                     h = h - vscroll;
                     dst_i += (vscroll * 160) as isize;
@@ -209,7 +205,7 @@ impl Video {
         buffer: &mut Buffer,
         color: u8,
         zoom: u16,
-        point: Point
+        point: Point,
     ) {
         let mut color = color;
         let mut i = buffer.fetch_byte();
@@ -231,16 +227,13 @@ impl Video {
         }
     }
 
-    fn read_and_draw_polygon_hierarchy(
-        &mut self,
-        buffer: &mut Buffer,
-        zoom: u16,
-        point: Point
-    ) {
+    fn read_and_draw_polygon_hierarchy(&mut self, buffer: &mut Buffer, zoom: u16, point: Point) {
         let mut pt = point;
         let zoom32 = zoom as i32;
-        pt.x = pt.x.wrapping_sub((buffer.fetch_byte() as i32 * zoom32 / 64) as i16);
-        pt.y = pt.y.wrapping_sub((buffer.fetch_byte() as i32 * zoom32 / 64) as i16);
+        pt.x =
+            pt.x.wrapping_sub((buffer.fetch_byte() as i32 * zoom32 / 64) as i16);
+        pt.y =
+            pt.y.wrapping_sub((buffer.fetch_byte() as i32 * zoom32 / 64) as i16);
 
         let children = buffer.fetch_byte() as usize + 1;
         debug!("read_and_draw_polygon_hierarchy children={}", children);
@@ -249,7 +242,10 @@ impl Video {
 
             let x = (buffer.fetch_byte() as i32 * zoom32 / 64) as i16;
             let y = (buffer.fetch_byte() as i32 * zoom32 / 64) as i16;
-            let po = Point { x: pt.x.wrapping_add(x), y: pt.y.wrapping_add(y) };
+            let po = Point {
+                x: pt.x.wrapping_add(x),
+                y: pt.y.wrapping_add(y),
+            };
 
             let mut color = 0xff;
             let _bp = offset;
@@ -269,12 +265,7 @@ impl Video {
         }
     }
 
-    fn fill_polygon(
-        &mut self,
-        polygon: Polygon,
-        color: u8,
-        point: Point,
-    ) {
+    fn fill_polygon(&mut self, polygon: Polygon, color: u8, point: Point) {
         if polygon.bbw == 0 && polygon.bbh == 1 && polygon.num_points() == 4 {
             self.draw_point(color, point);
             return;
@@ -372,7 +363,8 @@ impl Video {
 
         let colb = ((color & 0xf) << 4) | (color & 0xf);
         if cmasks != 0 {
-            self.pages[self.cur_page_ptr1].data[offset] = (self.pages[self.cur_page_ptr1].data[offset] & cmasks) | (colb & 0x0f);
+            self.pages[self.cur_page_ptr1].data[offset] =
+                (self.pages[self.cur_page_ptr1].data[offset] & cmasks) | (colb & 0x0f);
             offset += 1;
         }
         while w > 0 {
@@ -381,7 +373,8 @@ impl Video {
             w -= 1;
         }
         if cmaske != 0 {
-            self.pages[self.cur_page_ptr1].data[offset] = (self.pages[self.cur_page_ptr1].data[offset] & cmaske) | (colb & 0xf0);
+            self.pages[self.cur_page_ptr1].data[offset] =
+                (self.pages[self.cur_page_ptr1].data[offset] & cmaske) | (colb & 0xf0);
         }
     }
 
