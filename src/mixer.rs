@@ -36,7 +36,7 @@ impl MixerChunk {
     pub fn new(data: &[u8], len: usize, loop_len: usize) -> MixerChunk {
         let loop_pos = if loop_len > 0 { len } else { 0 };
         //debug!("MixerChunk: len: {}, loop_len: {}, loop_pos: {}", len, loop_len, loop_pos);
-        MixerChunk { data: data[0..len].to_vec(), len, loop_len, loop_pos }
+        MixerChunk { data: data.to_vec(), len, loop_len, loop_pos }
     }
 }
 
@@ -110,7 +110,7 @@ impl AudioCallback for MixerAudio {
 
                     let p2 = if channel.chunk.loop_len != 0 {
                         //debug!("p1: {}, loop_pos: {}, loop_len: {}", p1, channel.chunk.loop_pos, channel.chunk.loop_len);
-                        if p1 == channel.chunk.loop_pos + channel.chunk.loop_len - 2 {
+                        if p1 == channel.chunk.loop_pos + channel.chunk.loop_len - 1 {
                             debug!("Looping sample on channel {}", chan_num);
                             channel.chunk_pos = channel.chunk.loop_pos;
                             channel.chunk.loop_pos
@@ -128,14 +128,6 @@ impl AudioCallback for MixerAudio {
                             p1 + 1
                         }
                     };
-                    if p1 >= channel.chunk.data.len() {
-                        //warn!("p1 is overflowing chunk data: {}/{}", p1, channel.chunk.data.len());
-                    }
-                    if p2 >= channel.chunk.data.len() {
-                        //warn!("p2 is overflowing chunk data: {}/{}", p2, channel.chunk.data.len());
-                    }
-                    let p1 = p1 % channel.chunk.data.len();
-                    let p2 = p2 % channel.chunk.data.len();
                     assert!(p1 < channel.chunk.data.len());
                     assert!(p2 < channel.chunk.data.len());
                     let b1 = channel.chunk.data[p1] as i8;
