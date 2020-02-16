@@ -1,12 +1,18 @@
 use log::{debug, warn};
 use rand::random;
+use std::cmp;
+use std::sync::{Arc, RwLock};
+use std::thread::sleep;
+use std::time::Duration;
 
 use crate::buffer::Buffer;
+use crate::mixer;
+use crate::mixer::Mixer;
 use crate::opcode::Opcode;
 use crate::parts;
 use crate::resource::Resource;
-use crate::video::{Palette, Point, Video};
 use crate::sys::SDLSys;
+use crate::video::{Palette, Point, Video};
 
 const NUM_VARIABLES: usize = 256;
 const NUM_THREADS: usize = 64;
@@ -48,6 +54,7 @@ pub enum VideoBufferSeg {
 pub struct VirtualMachine {
     variables: [i16; NUM_VARIABLES],
     threads: [Thread; NUM_THREADS],
+    mixer: Arc<RwLock<Mixer>>,
     resource: Resource,
     video: Video,
     requested_next_part: Option<u16>,
@@ -61,7 +68,7 @@ pub struct VirtualMachine {
 }
 
 impl VirtualMachine {
-    pub fn new(resource: Resource, video: Video, sys: SDLSys) -> VirtualMachine {
+    pub fn new(resource: Resource, video: Video, mut sys: SDLSys) -> VirtualMachine {
         let mut variables = [0; NUM_VARIABLES];
         variables[0x54] = 0x81;
         variables[VM_VARIABLE_RANDOM_SEED] = random::<i16>();
@@ -71,9 +78,12 @@ impl VirtualMachine {
             variables[0xf2] = 4000;
             variables[0xdc] = 33;
         }
+        let mixer = Arc::new(RwLock::new(Mixer::new()));
+        sys.start_audio(mixer.clone());
         VirtualMachine {
             variables,
             threads: [Thread::new(); NUM_THREADS],
+            mixer,
             resource,
             video,
             requested_next_part: None,
@@ -95,6 +105,10 @@ impl VirtualMachine {
         self.variables[0xe4] = 0x14;
 
         self.resource.setup_part(part_id);
+        if self.resource.copy_vid_ptr {
+            debug!("init_for_part copy_vid_ptr");
+        }
+        // copy
 
         for thread in self.threads.iter_mut() {
             thread.pc = 0xffff;
@@ -204,7 +218,6 @@ impl VirtualMachine {
                 Opcode::PlayMusic => self.op_play_music(),
                 Opcode::DrawPolySprite(val) => self.op_draw_poly_sprite(val),
                 Opcode::DrawPolyBackground(val) => self.op_draw_poly_background(val),
-                //val => unimplemented!("pc 0x{:x} Unimplemented opcode: {:?}", self.script_ptr, val),
             }
         }
     }
@@ -465,11 +478,12 @@ impl VirtualMachine {
     }
 
     fn op_play_sound(&mut self) {
-        let _resource_id = self.fetch_word();
-        let _freq = self.fetch_byte();
-        let _vol = self.fetch_byte();
-        let _channel = self.fetch_byte();
-        warn!("play_sound() not implemented");
+        let resource_id = self.fetch_word();
+        let freq = self.fetch_byte();
+        let vol = self.fetch_byte();
+        let channel = self.fetch_byte();
+        debug!("play_sound(0x{:x}, {}, {}, {})", resource_id, freq, vol, channel);
+        self.play_sound_resource(resource_id, freq, vol, channel);
     }
 
     fn op_update_memlist(&mut self) {
@@ -482,9 +496,14 @@ impl VirtualMachine {
             self.resource.invalidate_resource();
         } else {
             if resource_id >= parts::GAME_PART_FIRST {
+                warn!("Requesting new part {}", resource_id);
                 self.requested_next_part = Some(resource_id);
             } else {
                 self.resource.load_memory_entry(resource_id);
+                if self.resource.copy_vid_ptr {
+                    debug!("update_memlist copy_vid_ptr: {}", self.resource.video_page_data().len());
+                    self.resource.copy_vid_ptr = false;
+                }
             }
         }
     }
@@ -579,5 +598,25 @@ impl VirtualMachine {
         );
         let point = Point { x, y };
         self.video.read_and_draw_polygon(&mut buffer, COLOR_BLACK, DEFAULT_ZOOM, point);
+    }
+
+    fn play_sound_resource(&mut self, resource_id: u16, freq: u8, vol: u8, channel: u8) {
+        debug!("play_sound_resource(0x{:x}, {}, {}, {})", resource_id, freq, vol, channel);
+        let mut write_guard = loop {
+            if let Ok(write_guard) = self.mixer.write() {
+                break write_guard;
+            }
+            sleep(Duration::from_millis(10));
+        };
+        if vol == 0 {
+            write_guard.stop_channel(channel);
+        } else {
+            if let Some(mixer_chunk) = self.resource.get_entry_mixer_chunk(resource_id) {
+                let frequence = mixer::FREQUENCE_TABLE[freq as usize];
+                let vol = cmp::min(vol, 0x3f);
+                write_guard.play_channel(channel & 3, mixer_chunk, frequence, vol);
+
+            }
+        }
     }
 }

@@ -6,6 +6,7 @@ use byteorder::{BigEndian, ByteOrder, ReadBytesExt};
 use log::{debug, warn};
 
 use crate::bank::Bank;
+use crate::mixer::MixerChunk;
 use crate::parts;
 
 const MEM_BLOCK_SIZE: usize = 600 * 1024;
@@ -82,6 +83,7 @@ pub struct Resource {
     pub seg_bytecode: usize,
     pub seg_cinematic: usize,
     pub seg_video2: usize,
+    pub copy_vid_ptr: bool,
 }
 
 impl Resource {
@@ -98,6 +100,7 @@ impl Resource {
             seg_bytecode: 0,
             seg_cinematic: 0,
             seg_video2: 0,
+            copy_vid_ptr: false,
         }
     }
 
@@ -181,6 +184,50 @@ impl Resource {
         }
     }
 
+    pub fn video_page_data(&self) -> Vec<u8> {
+        debug!("video_page_data()");
+        let mut buf = Vec::new();
+
+        let mut off = self.vid_cur_ptr;
+        for _h in 0..200 {
+            for _w in 0..40 {
+                let mut p = [
+                    self.memory[off + 8000 * 3],
+                    self.memory[off + 8000 * 2],
+                    self.memory[off + 8000 * 1],
+                    self.memory[off + 8000 * 0],
+                ];
+                for _j in 0..4 {
+                    let mut acc = 0;
+                    for i in 0..8 {
+                        acc <<= 1;
+                        acc |= if (p[i & 3] & 0x80) > 0 { 1 } else { 0 };
+                        p[i & 3] <<= 1;
+                    }
+                    buf.push(acc);
+                }
+                off += 1;
+            }
+        }
+        buf
+    }
+
+    pub fn get_entry_mixer_chunk(&self, resource_id: u16) -> Option<MixerChunk> {
+        let resource_id = resource_id as usize;
+        let entry = &self.mem_list[resource_id];
+
+        if entry.state != MemEntryState::Loaded {
+            return None;
+        }
+        debug!("sound buf_ptr {}", entry.buf_ptr);
+        let header = &self.memory[entry.buf_ptr..entry.buf_ptr + 8];
+        let data = &self.memory[entry.buf_ptr + 8..];
+        let len = (BigEndian::read_u16(header) * 2) as usize;
+        let loop_len = (BigEndian::read_u16(&header[2..]) * 2) as usize;
+
+        Some(MixerChunk::new(&data[0..len], len, loop_len))
+    }
+
     fn read_bank(mem_entry: &MemEntry) -> std::io::Result<Bank> {
         let file_name = format!("data/Bank{:02x}", mem_entry.bank_id);
         warn!("Reading bank: {}", file_name);
@@ -244,9 +291,8 @@ impl Resource {
             assert!(data.len() == entry.size);
             dst.copy_from_slice(&data);
             if let EntryType::PolyAnim = entry.entry_type {
-                // video->copyPage(_vidCurPtr);
+                self.copy_vid_ptr = true;
                 entry.state = MemEntryState::NotNeeded;
-                unimplemented!("video->copyPage");
             } else {
                 entry.buf_ptr = load_destination;
                 entry.state = MemEntryState::Loaded;

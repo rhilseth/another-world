@@ -5,6 +5,7 @@ use sdl2::keyboard::Keycode;
 mod bank;
 mod buffer;
 mod engine;
+mod mixer;
 mod opcode;
 mod parts;
 mod resource;

@@ -1,11 +1,14 @@
 use log::debug;
 use std::{thread, time};
+use std::sync::{Arc, RwLock};
 
+use sdl2::audio::{AudioCallback, AudioDevice, AudioSpecDesired};
 use sdl2::pixels::{Color, Palette, PixelFormatEnum};
 use sdl2::rect::Rect;
-use sdl2::surface::Surface;
 use sdl2::render::WindowCanvas;
+use sdl2::surface::Surface;
 
+use crate::mixer;
 use crate::video;
 
 const SCREEN_W: u32 = 320;
@@ -13,8 +16,10 @@ const SCREEN_H: u32 = 200;
 const _SOUND_SAMPLE_RATE: u16 = 22050;
 
 pub struct SDLSys {
+    sdl_context: sdl2::Sdl,
     surface: Surface<'static>,
     canvas: WindowCanvas,
+    audio_device: Option<AudioDevice<mixer::MixerAudio>>,
 }
 
 impl SDLSys {
@@ -30,8 +35,10 @@ impl SDLSys {
         let mut canvas = window.into_canvas().build().expect("Expected canvas");
         canvas.set_logical_size(SCREEN_W, SCREEN_H).expect("Expected logical size");
         SDLSys {
+            sdl_context,
             surface: Surface::new(SCREEN_W, SCREEN_H, PixelFormatEnum::Index8).unwrap(),
             canvas,
+            audio_device: None,
         }
     }
 
@@ -70,6 +77,25 @@ impl SDLSys {
     }
 
     pub fn get_timestamp(&self) -> u64 {
-        0
+        (time::Instant::now().elapsed().as_millis() & std::u64::MAX as u128) as u64
+    }
+
+    pub fn start_audio(&mut self, audio: Arc<RwLock<mixer::Mixer>>) {
+        debug!("Starting audio");
+        let audio_subsystem = self.sdl_context.audio().unwrap();
+
+        let desired_spec = AudioSpecDesired {
+            freq: Some(22050),
+            channels: Some(1),
+            samples: None,
+        };
+
+        let device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
+            debug!("Actual spec: {:?}", spec);
+            mixer::MixerAudio(audio)
+        }).unwrap();
+
+        device.resume();
+        self.audio_device = Some(device);
     }
 }
