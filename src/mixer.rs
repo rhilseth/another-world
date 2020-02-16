@@ -35,7 +35,6 @@ pub struct MixerChunk {
 impl MixerChunk {
     pub fn new(data: &[u8], len: usize, loop_len: usize) -> MixerChunk {
         let loop_pos = if loop_len > 0 { len } else { 0 };
-        //debug!("MixerChunk: len: {}, loop_len: {}, loop_pos: {}", len, loop_len, loop_pos);
         MixerChunk { data: data.to_vec(), len, loop_len, loop_pos }
     }
 }
@@ -88,7 +87,6 @@ impl AudioCallback for MixerAudio {
     type Channel = i8;
 
     fn callback(&mut self, out: &mut [i8]) {
-        debug!("Audio callback. Buffer size: {}", out.len());
         let mut write_guard = loop {
             if let Ok(write_guard) = self.0.write() {
                 break write_guard;
@@ -101,21 +99,17 @@ impl AudioCallback for MixerAudio {
 
         for (chan_num, ch) in write_guard.channels.iter_mut().enumerate() {
             if let Some(ref mut channel) = ch {
-                //debug!("Got audio channel");
-                for (j, s) in out.iter_mut().enumerate() {
+                for s in out.iter_mut() {
                     let ilc = (channel.chunk_pos & 0xff) as i16;
                     let p1 = channel.chunk_pos >> 8;
-                    //debug!("chunk_pos: {}, chunk_inc: {}", channel.chunk_pos, channel.chunk_inc);
                     channel.chunk_pos += channel.chunk_inc;
 
                     let p2 = if channel.chunk.loop_len != 0 {
-                        //debug!("p1: {}, loop_pos: {}, loop_len: {}", p1, channel.chunk.loop_pos, channel.chunk.loop_len);
                         if p1 == channel.chunk.loop_pos + channel.chunk.loop_len - 1 {
                             debug!("Looping sample on channel {}", chan_num);
                             channel.chunk_pos = channel.chunk.loop_pos;
                             channel.chunk.loop_pos
                         } else {
-                            //debug!("Not looping yet");
                             p1 + 1
                         }
                     } else {
@@ -124,7 +118,6 @@ impl AudioCallback for MixerAudio {
                             ch.take();
                             break;
                         } else {
-                            //debug!("Not looping, and not at end");
                             p1 + 1
                         }
                     };
