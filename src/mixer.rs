@@ -2,7 +2,7 @@ use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use std::thread::sleep;
 
-use log::{debug, warn};
+use log::debug;
 use sdl2::audio::AudioCallback;
 
 pub const FREQUENCE_TABLE: [u16; 40] = [
@@ -68,13 +68,13 @@ impl Mixer {
         self.channels[channel as usize].take();
     }
 
-    pub fn set_channel_volume(&mut self, channel: u8, volume: u8) {
+    pub fn _set_channel_volume(&mut self, channel: u8, volume: u8) {
         if let Some(ref mut channel) = self.channels[channel as usize] {
             channel.volume = volume;
         }
     }
 
-    pub fn stop_all(&mut self) {
+    pub fn _stop_all(&mut self) {
         for channel in self.channels.iter_mut() {
             channel.take();
         }

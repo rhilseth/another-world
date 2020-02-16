@@ -224,11 +224,9 @@ impl Resource {
         let data = &self.memory[entry.buf_ptr + 8..];
         let len = (BigEndian::read_u16(header) * 2) as usize;
         let loop_len = (BigEndian::read_u16(&header[2..]) * 2) as usize;
-        let mut data_len = len;
+
         // When looping, buffer length is larger than len
-        if loop_len > 0 {
-            data_len = len + loop_len;
-        }
+        let data_len = len + loop_len;
         Some(MixerChunk::new(&data[0..data_len], len, loop_len))
     }
 

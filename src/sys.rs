@@ -2,7 +2,7 @@ use log::debug;
 use std::{thread, time};
 use std::sync::{Arc, RwLock};
 
-use sdl2::audio::{AudioCallback, AudioDevice, AudioSpecDesired};
+use sdl2::audio::{AudioDevice, AudioSpecDesired};
 use sdl2::pixels::{Color, Palette, PixelFormatEnum};
 use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
