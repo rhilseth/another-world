@@ -198,7 +198,7 @@ impl Video {
     pub fn draw_string(&self, color: u16, x: u16, y: u16, string_id: u16) {
         debug!("DrawString(0x{:04x}, {}, {}, {})", string_id, x, y, color);
         if let Some(entry) = STRINGS_TABLE_ENG.get(&string_id) {
-            debug!("DrawString(): {}", entry);
+            warn!("DrawString(): {}", entry);
         } else {
             warn!("String with id 0x{:03x} not found", string_id);
         }
@@ -242,9 +242,9 @@ impl Video {
         pt.x = pt.x.wrapping_sub((buffer.fetch_byte() as i32 * zoom32 / 64) as i16);
         pt.y = pt.y.wrapping_sub((buffer.fetch_byte() as i32 * zoom32 / 64) as i16);
 
-        let children = buffer.fetch_byte() as usize;
+        let children = buffer.fetch_byte() as usize + 1;
         debug!("read_and_draw_polygon_hierarchy children={}", children);
-        for _ in 0..=children {
+        for _ in 0..children {
             let mut offset = buffer.fetch_word() as usize;
 
             let x = (buffer.fetch_byte() as i32 * zoom32 / 64) as i16;
