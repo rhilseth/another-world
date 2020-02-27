@@ -1,4 +1,4 @@
-use log::{debug, warn};
+use log::{debug, trace, warn};
 use rand::random;
 use std::cmp;
 use std::sync::{Arc, RwLock};
@@ -421,10 +421,11 @@ impl VirtualMachine {
         //inp_handle_special_keys();
 
         let delay = self.sys.get_timestamp() - self.last_timestamp;
-        let time_to_sleep = self.variables[VM_VARIABLE_PAUSE_SLICES] as u64 * 20 - delay;
-
-        if time_to_sleep > 0 {
+        let pause_time = self.variables[VM_VARIABLE_PAUSE_SLICES] as u64 * 20;
+        if pause_time > delay {
+            let time_to_sleep = pause_time - delay;
             self.sys.sleep(time_to_sleep);
+            trace!("Delay: {}, time_to_sleep: {}", delay, time_to_sleep);
         }
 
         self.last_timestamp = self.sys.get_timestamp();

@@ -20,6 +20,7 @@ pub struct SDLSys {
     surface: Surface<'static>,
     canvas: WindowCanvas,
     audio_device: Option<AudioDevice<mixer::MixerAudio>>,
+    timestamp: time::Instant,
 }
 
 impl SDLSys {
@@ -41,6 +42,7 @@ impl SDLSys {
             surface: Surface::new(SCREEN_W, SCREEN_H, PixelFormatEnum::Index8).unwrap(),
             canvas,
             audio_device: None,
+            timestamp: time::Instant::now(),
         }
     }
 
@@ -86,7 +88,7 @@ impl SDLSys {
     }
 
     pub fn get_timestamp(&self) -> u64 {
-        (time::Instant::now().elapsed().as_millis() & std::u64::MAX as u128) as u64
+        (self.timestamp.elapsed().as_millis() & std::u64::MAX as u128) as u64
     }
 
     pub fn start_audio(&mut self, audio: Arc<RwLock<mixer::Mixer>>) {
