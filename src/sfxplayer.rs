@@ -1,8 +1,11 @@
+use std::thread::sleep;
+use std::time::Duration;
 use std::time;
 
-use log::debug;
+use log::{debug, trace};
 
 use crate::buffer::Buffer;
+use crate::mixer::{MixerAudio, MixerChunk};
 
 pub struct SfxInstrument {
     data: Vec<u8>,
@@ -123,6 +126,7 @@ impl SfxPlayer {
     }
 
     pub fn set_sfx_module(&mut self, module: SfxModule) {
+        trace!("Setting sfx module");
         self.sfx_module = Some(module);
     }
 
@@ -130,8 +134,8 @@ impl SfxPlayer {
         self.delay
     }
 
-    pub fn handle_events(&mut self) -> Option<PatternResult> {
-        let mut result = None;
+    pub fn handle_events(&mut self, mixer: MixerAudio) -> Option<i16> {
+        let mut variable_value = None;
         let ts = self.timestamp.elapsed().as_millis();
         let since_last_call = ts - self.last_timestamp;
         debug!("handle_events() {}", since_last_call);
@@ -139,10 +143,31 @@ impl SfxPlayer {
 
         if let Some(sfx_module) = &self.sfx_module {
             let order = sfx_module.order_table[sfx_module.cur_order as usize] as usize;
+            let mut write_guard = loop {
+                if let Ok(write_guard) = mixer.0.write() {
+                    break write_guard;
+                }
+                sleep(Duration::from_millis(10));
+            };
             for ch in 0..4 {
                 let start = sfx_module.cur_pos + order * 1024 + ch * 4;
+                trace!("Start: {}", start);
                 let pattern_data = Buffer::new(&sfx_module.data[start..start + 4]);
-                result = self.handle_pattern(ch as u8, pattern_data);
+                let result = self.handle_pattern(ch as u8, pattern_data);
+                match result {
+                    Some(PatternResult::StopChannel(channel)) => write_guard.stop_channel(channel),
+                    Some(PatternResult::MarkVariable(var)) => variable_value = Some(var as i16),
+                    Some(PatternResult::Pattern(channel, pat)) => {
+                        trace!("Playing music");
+                        assert!(pat.note1 >= 0x37);
+                        assert!(pat.note1 < 0x1000);
+                        let freq = (7159092 / (pat.note1 * 2) as u32) as u16;
+                        let volume = pat.sample_volume;
+                        let chunk = MixerChunk::from_sfx_pattern(pat);
+                        write_guard.play_channel(channel, chunk, freq, volume as u8);
+                    }
+                    None => { }
+                }
             }
         }
 
@@ -156,9 +181,10 @@ impl SfxPlayer {
                 if order == sfx_module.num_order {
                     //STOP PLAYING
                 }
+                sfx_module.cur_order = order;
             }
         }
-        result
+        variable_value
     }
 
     fn handle_pattern(
@@ -168,12 +194,15 @@ impl SfxPlayer {
     ) -> Option<PatternResult> {
         let note1 = pattern_data.fetch_word();
         let note2 = pattern_data.fetch_word();
+        trace!("Note1: {}, Note2: {}", note1, note2);
         if note1 != 0xfffd {
             if note1 == 0xfffe {
+                trace!("Stop channel {}", channel);
                 return Some(PatternResult::StopChannel(channel));
             }
             let sample_index = ((note2 & 0xf000) >> 12) as usize;
             if sample_index != 0 {
+                trace!("Have sample index");
                 let sfx_module = self.sfx_module.as_ref()
                     .expect("sfx_module should be available here");
                 let sample = sfx_module.samples[sample_index - 1].as_ref()

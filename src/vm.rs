@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use crate::buffer::Buffer;
 use crate::mixer;
-use crate::mixer::{Mixer, MixerChunk};
+use crate::mixer::{Mixer, MixerAudio, MixerChunk};
 use crate::opcode::Opcode;
 use crate::parts;
 use crate::resource::Resource;
@@ -666,19 +666,8 @@ impl VirtualMachine {
     }
 
     fn handle_events(&mut self) {
-        if let Some(result) = self.player.handle_events() {
-            match result {
-                PatternResult::StopChannel(channel) => self.stop_channel(channel),
-                PatternResult::MarkVariable(var) => self.variables[VM_VARIABLE_MUS_MARK] = var as i16,
-                PatternResult::Pattern(channel, pat) => {
-                    assert!(pat.note1 >= 0x37);
-                    assert!(pat.note1 < 0x1000);
-                    let freq = (7159092 / (pat.note1 * 2) as u32) as u16;
-                    let volume = pat.sample_volume;
-                    let chunk = MixerChunk::from_sfx_pattern(pat);
-                    self.play_channel(channel, chunk, freq, volume as u8);
-                }
-            }
+        if let Some(value) = self.player.handle_events(MixerAudio(self.mixer.clone())) {
+            self.variables[VM_VARIABLE_MUS_MARK] = value;
         }
     }
 
