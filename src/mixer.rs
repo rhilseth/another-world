@@ -5,6 +5,8 @@ use std::time::Duration;
 use log::debug;
 use sdl2::audio::AudioCallback;
 
+use crate::sfxplayer::SfxPattern;
+
 pub const FREQUENCE_TABLE: [u16; 40] = [
     0x0CFF, 0x0DC3, 0x0E91, 0x0F6F, 0x1056, 0x114E, 0x1259, 0x136C, 0x149F, 0x15D9, 0x1726, 0x1888,
     0x19FD, 0x1B86, 0x1D21, 0x1EDE, 0x20AB, 0x229C, 0x24B3, 0x26D7, 0x293F, 0x2BB2, 0x2E4C, 0x3110,
@@ -39,6 +41,15 @@ impl MixerChunk {
             len,
             loop_len,
             loop_pos,
+        }
+    }
+
+    pub fn from_sfx_pattern(pattern: SfxPattern) -> MixerChunk {
+        MixerChunk {
+            data: pattern.sample_buffer,
+            len: pattern.sample_len,
+            loop_len: pattern.loop_len,
+            loop_pos: pattern.loop_pos,
         }
     }
 }

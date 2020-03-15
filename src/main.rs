@@ -10,6 +10,7 @@ mod mixer;
 mod opcode;
 mod parts;
 mod resource;
+mod sfxplayer;
 mod strings;
 mod sys;
 mod video;

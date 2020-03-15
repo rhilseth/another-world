@@ -6,8 +6,10 @@ use byteorder::{BigEndian, ByteOrder, ReadBytesExt};
 use log::{debug, warn};
 
 use crate::bank::Bank;
+use crate::buffer::Buffer;
 use crate::mixer::MixerChunk;
 use crate::parts;
+use crate::sfxplayer::{SfxInstrument, SfxModule};
 
 const MEM_BLOCK_SIZE: usize = 600 * 1024;
 
@@ -31,7 +33,7 @@ impl MemEntryState {
     }
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 enum EntryType {
     Sound,
     Music,
@@ -233,9 +235,71 @@ impl Resource {
         Some(MixerChunk::new(&data[0..data_len], len, loop_len))
     }
 
+    pub fn load_sfx_module(
+        &self,
+        resource_id: u16,
+        delay: &mut u16,
+        pos: u8
+    ) -> Option<SfxModule> {
+        debug!("load_sfx_module(0x{:x}, {}, {}", resource_id, delay, pos);
+        let resource_id = resource_id as usize;
+        let entry = &self.mem_list[resource_id];
+
+        if entry.state != MemEntryState::Loaded || entry.entry_type != EntryType::Music {
+            return None;
+        }
+        let data = &self.memory[entry.buf_ptr..];
+        let cur_order = pos;
+        let num_order = BigEndian::read_u16(&data[0x3e..]) as u8;
+        debug!(
+            "load_sfx_module() cur_order = 0x{:x}, num_order = 0x{:x}",
+            cur_order, num_order
+        );
+        let mut order_table = [0; 0x80];
+        for (i, order) in order_table.iter_mut().enumerate() {
+            *order = data[0x40 + i];
+        }
+        if *delay == 0 {
+            *delay = BigEndian::read_u16(&data)
+        }
+        let data = &data[0xc0..entry.size];
+        let mut samples = Vec::new();
+        for i in 0..15 {
+            let buf = &self.memory[entry.buf_ptr + 2 + i * 4..];
+            samples.push(self.prepare_instrument(&buf));
+        }
+
+        let module = SfxModule::new(
+            data.into(),
+            cur_order,
+            num_order,
+            order_table,
+            samples,
+        );
+        Some(module)
+    }
+
+    fn prepare_instrument(&self, buf: &[u8]) -> Option<SfxInstrument> {
+        let mut buffer = Buffer::new(&buf);
+        let resource_id = buffer.fetch_word();
+        if resource_id == 0 {
+            return None;
+        }
+        let volume = buffer.fetch_word();
+        let entry = &self.mem_list[resource_id as usize];
+        if entry.state != MemEntryState::Loaded || entry.entry_type != EntryType::Sound {
+            panic!("Error loading instrument 0x{:x}", resource_id);
+        }
+        let mut data = self.memory[entry.buf_ptr..entry.buf_ptr + entry.size].to_vec();
+        for i in 8..12 {
+            data[i] = 0;
+        }
+        Some(SfxInstrument::new(data, volume))
+    }
+
     fn read_bank(mem_entry: &MemEntry) -> std::io::Result<Bank> {
         let file_name = format!("data/Bank{:02x}", mem_entry.bank_id);
-        warn!("Reading bank: {}", file_name);
+        debug!("Reading bank: {}", file_name);
         let mut file = File::open(file_name)?;
         file.seek(SeekFrom::Start(mem_entry.bank_offset as u64))?;
 

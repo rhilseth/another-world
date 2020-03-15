@@ -7,10 +7,11 @@ use std::time::Duration;
 
 use crate::buffer::Buffer;
 use crate::mixer;
-use crate::mixer::Mixer;
+use crate::mixer::{Mixer, MixerChunk};
 use crate::opcode::Opcode;
 use crate::parts;
 use crate::resource::Resource;
+use crate::sfxplayer::{PatternResult, SfxPlayer};
 use crate::sys::SDLSys;
 use crate::video::{Palette, Point, Video};
 
@@ -22,6 +23,7 @@ const COLOR_BLACK: u8 = 0xff;
 const DEFAULT_ZOOM: u16 = 0x40;
 const STACK_SIZE: usize = 0xff;
 
+const VM_VARIABLE_MUS_MARK: usize = 0xf4;
 const VM_VARIABLE_RANDOM_SEED: usize = 0x3c;
 const VM_VARIABLE_SCROLL_Y: usize = 0xf9;
 const VM_VARIABLE_PAUSE_SLICES: usize = 0xff;
@@ -56,6 +58,7 @@ pub struct VirtualMachine {
     mixer: Arc<RwLock<Mixer>>,
     resource: Resource,
     video: Video,
+    player: SfxPlayer,
     requested_next_part: Option<u16>,
     script_ptr: usize,
     stack_ptr: usize,
@@ -64,6 +67,7 @@ pub struct VirtualMachine {
     script_stack_calls: [usize; STACK_SIZE],
     sys: SDLSys,
     last_timestamp: u64,
+    countdown: Option<u64>,
 }
 
 impl VirtualMachine {
@@ -85,6 +89,7 @@ impl VirtualMachine {
             mixer,
             resource,
             video,
+            player: SfxPlayer::new(),
             requested_next_part: None,
             script_ptr: 0,
             stack_ptr: 0,
@@ -93,6 +98,7 @@ impl VirtualMachine {
             script_stack_calls: [0; STACK_SIZE],
             sys,
             last_timestamp: 0,
+            countdown: None,
         }
     }
 
@@ -421,17 +427,12 @@ impl VirtualMachine {
         //inp_handle_special_keys();
 
         let delay = self.sys.get_timestamp() - self.last_timestamp;
-        let pause_time = self.variables[VM_VARIABLE_PAUSE_SLICES] as u64 * 20;
-        if pause_time > delay {
-            let time_to_sleep = pause_time - delay;
-            self.sys.sleep(time_to_sleep);
-            trace!("Delay: {}, time_to_sleep: {}", delay, time_to_sleep);
-        }
 
+        let pause_time = self.variables[VM_VARIABLE_PAUSE_SLICES] as i64 * 20;
+        self.check_handle_events(delay as i64, pause_time);
         self.last_timestamp = self.sys.get_timestamp();
 
         self.variables[0xf7] = 0;
-
         self.video.update_display(&mut self.sys, page_id);
     }
 
@@ -522,10 +523,10 @@ impl VirtualMachine {
     }
 
     fn op_play_music(&mut self) {
-        let _resource_id = self.fetch_word();
-        let _delay = self.fetch_word();
-        let _pos = self.fetch_byte();
-        warn!("play_music() not implemented");
+        let resource_id = self.fetch_word();
+        let delay = self.fetch_word();
+        let pos = self.fetch_byte();
+        self.play_music_resource(resource_id, delay, pos);
     }
 
     fn op_draw_poly_sprite(&mut self, val: u8) {
@@ -621,25 +622,120 @@ impl VirtualMachine {
             .read_and_draw_polygon(&mut buffer, COLOR_BLACK, DEFAULT_ZOOM, point);
     }
 
-    fn play_sound_resource(&mut self, resource_id: u16, freq: u8, vol: u8, channel: u8) {
-        debug!(
-            "play_sound_resource(0x{:x}, {}, {}, {})",
-            resource_id, freq, vol, channel
-        );
+    fn stop_channel(&mut self, channel: u8) {
         let mut write_guard = loop {
             if let Ok(write_guard) = self.mixer.write() {
                 break write_guard;
             }
             sleep(Duration::from_millis(10));
         };
+        write_guard.stop_channel(channel);
+    }
+
+    fn play_channel(
+        &mut self,
+        channel: u8,
+        mixer_chunk: MixerChunk,
+        frequence: u16,
+        vol: u8
+    ) {
+        let mut write_guard = loop {
+            if let Ok(write_guard) = self.mixer.write() {
+                break write_guard;
+            }
+            sleep(Duration::from_millis(10));
+        };
+        let vol = cmp::min(vol, 0x3f);
+        write_guard.play_channel(channel & 3, mixer_chunk, frequence, vol);
+    }
+
+    fn play_sound_resource(&mut self, resource_id: u16, freq: u8, vol: u8, channel: u8) {
+        debug!(
+            "play_sound_resource(0x{:x}, {}, {}, {})",
+            resource_id, freq, vol, channel
+        );
         if vol == 0 {
-            write_guard.stop_channel(channel);
+            self.stop_channel(channel);
         } else {
             if let Some(mixer_chunk) = self.resource.get_entry_mixer_chunk(resource_id) {
                 let frequence = mixer::FREQUENCE_TABLE[freq as usize];
                 let vol = cmp::min(vol, 0x3f);
-                write_guard.play_channel(channel & 3, mixer_chunk, frequence, vol);
+                self.play_channel(channel & 3, mixer_chunk, frequence, vol);
             }
+        }
+    }
+
+    fn handle_events(&mut self) {
+        if let Some(result) = self.player.handle_events() {
+            match result {
+                PatternResult::StopChannel(channel) => self.stop_channel(channel),
+                PatternResult::MarkVariable(var) => self.variables[VM_VARIABLE_MUS_MARK] = var as i16,
+                PatternResult::Pattern(channel, pat) => {
+                    assert!(pat.note1 >= 0x37);
+                    assert!(pat.note1 < 0x1000);
+                    let freq = (7159092 / (pat.note1 * 2) as u32) as u16;
+                    let volume = pat.sample_volume;
+                    let chunk = MixerChunk::from_sfx_pattern(pat);
+                    self.play_channel(channel, chunk, freq, volume as u8);
+                }
+            }
+        }
+    }
+
+    fn check_handle_events(&mut self, time_passed: i64, time_to_sleep: i64) {
+        if let Some(countdown) = self.countdown {
+            trace!("Delay: {}, Countdown: {}, time_passed: {}, time_to_sleep: {}", self.player.delay(), countdown, time_passed, time_to_sleep);
+            let mut countdown = countdown as i64;
+            countdown -= time_passed;
+
+            if countdown <= time_to_sleep {
+                if countdown < 0 {
+                    trace!("Negative countdown, handle now");
+                    self.handle_events();
+                    countdown += self.player.delay() as i64;
+                    if countdown <= 0 {
+                        warn!("Timer underflow: {}, resetting", countdown);
+                        countdown = self.player.delay() as i64;
+                    }
+                    warn!("1. Setting countdown to: {}", countdown);
+                    self.countdown = Some(countdown as u64);
+                } else {
+                    trace!("Sleep until handle should be triggered");
+                    let sleep_later = (time_to_sleep - countdown) as u64;
+                    self.sys.sleep(countdown as u64);
+                    self.handle_events();
+                    warn!("2. Setting countdown to: {}", countdown);
+                    self.countdown = Some(self.player.delay() as u64);
+                    self.sys.sleep(sleep_later);
+                }
+            } else {
+                trace!("Just sleep");
+                warn!("3. Setting countdown to: {}", countdown);
+                self.countdown = Some((countdown - time_to_sleep) as u64);
+                self.sys.sleep(time_to_sleep as u64);
+            }
+        }
+    }
+
+    fn play_music_resource(&mut self, resource_id: u16, delay: u16, pos: u8) {
+        debug!("play_music_resource(0x{:x}, {}, {})", resource_id, delay, pos);
+        if resource_id != 0 {
+            let mut delay = delay;
+            if let Some(sfx_module) = self.resource.load_sfx_module(
+                resource_id,
+                &mut delay,
+                pos
+            ) {
+                self.player.set_sfx_module(sfx_module);
+                self.player.set_events_delay(delay);
+
+                let delay = self.player.delay() as u64;
+                self.countdown = Some(delay);
+            }
+        } else if delay != 0 {
+            self.player.set_events_delay(delay);
+        } else {
+            //self.player.stop();
         }
     }
 }

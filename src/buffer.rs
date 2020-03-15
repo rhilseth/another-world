@@ -6,6 +6,10 @@ pub struct Buffer<'a> {
 }
 
 impl<'a> Buffer<'a> {
+    pub fn new(data: &[u8]) -> Buffer {
+        Buffer { data, offset: 0 }
+    }
+
     pub fn with_offset(data: &[u8], offset: usize) -> Buffer {
         Buffer { data, offset }
     }

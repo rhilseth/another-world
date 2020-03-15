@@ -1,7 +1,7 @@
 use std::mem;
 
 use byteorder::{BigEndian, ByteOrder};
-use log::debug;
+use log::{debug, trace};
 
 pub enum Bank {
     Uncompressed(Vec<u8>),
@@ -54,7 +54,7 @@ impl<'a> Unpacker<'a> {
     fn next_chunk(&mut self) -> bool {
         let mut cf = self.rcr(false);
         if self.chk == 0 {
-            debug!("i = {}", self.i);
+            trace!("i = {}", self.i);
             self.chk = self.read_reverse_be_u32();
             self.crc ^= self.chk;
             cf = self.rcr(true);
@@ -64,7 +64,7 @@ impl<'a> Unpacker<'a> {
 
     fn dec_unk1(&mut self, num_chunks: u32, add_count: u32) {
         let mut count = self.get_code(num_chunks) + add_count + 1;
-        debug!("dec_unk1({}, {}) count={}", num_chunks, add_count, count);
+        trace!("dec_unk1({}, {}) count={}", num_chunks, add_count, count);
         self.datasize -= count;
         while count > 0 {
             count -= 1;
@@ -76,7 +76,7 @@ impl<'a> Unpacker<'a> {
     fn dec_unk2(&mut self, num_chunks: u32) {
         let i = self.get_code(num_chunks) as usize;
         let mut count = self.size + 1;
-        debug!("dec_unk2({}) i={} count={}", num_chunks, i, count);
+        trace!("dec_unk2({}) i={} count={}", num_chunks, i, count);
         self.datasize -= count;
         while count > 0 {
             count -= 1;
