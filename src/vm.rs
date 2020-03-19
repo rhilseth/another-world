@@ -2,8 +2,7 @@ use log::{debug, trace, warn};
 use rand::random;
 use std::cmp;
 use std::sync::{Arc, RwLock};
-use std::thread::sleep;
-use std::time::Duration;
+use std::sync::mpsc::Receiver;
 
 use crate::buffer::Buffer;
 use crate::mixer;
@@ -11,7 +10,7 @@ use crate::mixer::{Mixer, MixerAudio, MixerChunk};
 use crate::opcode::Opcode;
 use crate::parts;
 use crate::resource::Resource;
-use crate::sfxplayer::{PatternResult, SfxPlayer};
+use crate::sfxplayer::SfxPlayer;
 use crate::sys::SDLSys;
 use crate::video::{Palette, Point, Video};
 
@@ -67,7 +66,7 @@ pub struct VirtualMachine {
     script_stack_calls: [usize; STACK_SIZE],
     sys: SDLSys,
     last_timestamp: u64,
-    countdown: Option<u64>,
+    variable_receiver: Option<Receiver<i16>>,
 }
 
 impl VirtualMachine {
@@ -98,14 +97,14 @@ impl VirtualMachine {
             script_stack_calls: [0; STACK_SIZE],
             sys,
             last_timestamp: 0,
-            countdown: None,
+            variable_receiver: None,
         }
     }
 
     pub fn init_for_part(&mut self, part_id: u16) {
         debug!("init_for_part: {}", part_id);
-        // player.stop();
-        // mixer.stop_all();
+        self.player.stop();
+        self.mixer.write().expect("Expected non-poisoned RwLock").stop_all();
 
         self.variables[0xe4] = 0x14;
 
@@ -192,6 +191,12 @@ impl VirtualMachine {
 
     fn execute_thread(&mut self) {
         while !self.goto_next_thread {
+            if let Some(rx) = &self.variable_receiver {
+                if let Ok(value) = rx.try_recv() {
+                    debug!("Got variable value from sfxplayer: {}", value);
+                    self.variables[VM_VARIABLE_MUS_MARK] = value;
+                }
+            }
             //debug!("pc: 0x{:x} Decoding opcode", self.script_ptr);
             let opcode = Opcode::decode(self.fetch_byte());
 
@@ -428,8 +433,12 @@ impl VirtualMachine {
 
         let delay = self.sys.get_timestamp() - self.last_timestamp;
 
-        let pause_time = self.variables[VM_VARIABLE_PAUSE_SLICES] as i64 * 20;
-        self.check_handle_events(delay as i64, pause_time);
+        let pause_time = self.variables[VM_VARIABLE_PAUSE_SLICES] as u64 * 20;
+        if pause_time > delay {
+            let time_to_sleep = pause_time - delay;
+            self.sys.sleep(time_to_sleep);
+            trace!("Delay: {}, time_to_sleep: {}", delay, time_to_sleep);
+        }
         self.last_timestamp = self.sys.get_timestamp();
 
         self.variables[0xf7] = 0;
@@ -623,12 +632,8 @@ impl VirtualMachine {
     }
 
     fn stop_channel(&mut self, channel: u8) {
-        let mut write_guard = loop {
-            if let Ok(write_guard) = self.mixer.write() {
-                break write_guard;
-            }
-            sleep(Duration::from_millis(10));
-        };
+        let mut write_guard = self.mixer.write()
+            .expect("Expected non-poisoned RwLock");
         write_guard.stop_channel(channel);
     }
 
@@ -639,12 +644,8 @@ impl VirtualMachine {
         frequence: u16,
         vol: u8
     ) {
-        let mut write_guard = loop {
-            if let Ok(write_guard) = self.mixer.write() {
-                break write_guard;
-            }
-            sleep(Duration::from_millis(10));
-        };
+        let mut write_guard = self.mixer.write()
+            .expect("Expected non-poisoned RwLock");
         let vol = cmp::min(vol, 0x3f);
         write_guard.play_channel(channel & 3, mixer_chunk, frequence, vol);
     }
@@ -665,47 +666,6 @@ impl VirtualMachine {
         }
     }
 
-    fn handle_events(&mut self) {
-        if let Some(value) = self.player.handle_events(MixerAudio(self.mixer.clone())) {
-            self.variables[VM_VARIABLE_MUS_MARK] = value;
-        }
-    }
-
-    fn check_handle_events(&mut self, time_passed: i64, time_to_sleep: i64) {
-        if let Some(countdown) = self.countdown {
-            trace!("Delay: {}, Countdown: {}, time_passed: {}, time_to_sleep: {}", self.player.delay(), countdown, time_passed, time_to_sleep);
-            let mut countdown = countdown as i64;
-            countdown -= time_passed;
-
-            if countdown <= time_to_sleep {
-                if countdown < 0 {
-                    trace!("Negative countdown, handle now");
-                    self.handle_events();
-                    countdown += self.player.delay() as i64;
-                    if countdown <= 0 {
-                        warn!("Timer underflow: {}, resetting", countdown);
-                        countdown = self.player.delay() as i64;
-                    }
-                    warn!("1. Setting countdown to: {}", countdown);
-                    self.countdown = Some(countdown as u64);
-                } else {
-                    trace!("Sleep until handle should be triggered");
-                    let sleep_later = (time_to_sleep - countdown) as u64;
-                    self.sys.sleep(countdown as u64);
-                    self.handle_events();
-                    warn!("2. Setting countdown to: {}", countdown);
-                    self.countdown = Some(self.player.delay() as u64);
-                    self.sys.sleep(sleep_later);
-                }
-            } else {
-                trace!("Just sleep");
-                warn!("3. Setting countdown to: {}", countdown);
-                self.countdown = Some((countdown - time_to_sleep) as u64);
-                self.sys.sleep(time_to_sleep as u64);
-            }
-        }
-    }
-
     fn play_music_resource(&mut self, resource_id: u16, delay: u16, pos: u8) {
         debug!("play_music_resource(0x{:x}, {}, {})", resource_id, delay, pos);
         if resource_id != 0 {
@@ -718,13 +678,12 @@ impl VirtualMachine {
                 self.player.set_sfx_module(sfx_module);
                 self.player.set_events_delay(delay);
 
-                let delay = self.player.delay() as u64;
-                self.countdown = Some(delay);
+                self.variable_receiver.replace(self.player.start(MixerAudio(self.mixer.clone())));
             }
         } else if delay != 0 {
             self.player.set_events_delay(delay);
         } else {
-            //self.player.stop();
+            self.player.stop();
         }
     }
 }

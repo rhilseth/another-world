@@ -1,8 +1,9 @@
-use std::thread::sleep;
-use std::time::Duration;
-use std::time;
+use std::sync::{Arc, RwLock};
+use std::sync::mpsc::{Receiver, sync_channel};
 
+use chrono;
 use log::{debug, trace};
+use timer::{Guard, Timer};
 
 use crate::buffer::Buffer;
 use crate::mixer::{MixerAudio, MixerChunk};
@@ -104,10 +105,10 @@ impl SfxPattern {
 }
 
 pub struct SfxPlayer {
-    delay: u16,
+    delay: i64,
     sfx_module: Option<SfxModule>,
-    timestamp: time::Instant,
-    last_timestamp: u128,
+    timer: Timer,
+    timer_guard: Option<Guard>,
 }
 
 impl SfxPlayer {
@@ -115,14 +116,14 @@ impl SfxPlayer {
         SfxPlayer {
             delay: 0,
             sfx_module: None,
-            timestamp: time::Instant::now(),
-            last_timestamp: 0,
+            timer: Timer::new(),
+            timer_guard: None,
         }
     }
 
     pub fn set_events_delay(&mut self, delay: u16) {
         debug!("set_events_delay({})", delay);
-        self.delay = (delay as u32 * 60 / 7050) as u16;
+        self.delay = (delay as u32 * 60 / 7050) as i64;
     }
 
     pub fn set_sfx_module(&mut self, module: SfxModule) {
@@ -130,65 +131,68 @@ impl SfxPlayer {
         self.sfx_module = Some(module);
     }
 
-    pub fn delay(&self) -> u16 {
-        self.delay
+    pub fn start(&mut self, mixer: MixerAudio) -> Receiver<i16> {
+        let (tx, rx) = sync_channel::<i16>(0);
+        if let Some(sfx_module) = self.sfx_module.take() {
+            let sfx_module = Arc::new(RwLock::new(sfx_module));
+            self.timer_guard.replace(
+                self.timer.schedule_repeating(chrono::Duration::milliseconds(self.delay), move || {
+                    if let Some(variable) = SfxPlayer::handle_events(sfx_module.clone(), mixer.clone()) {
+                        tx.send(variable).unwrap();
+                    }
+                })
+            );
+        }
+        rx
     }
 
-    pub fn handle_events(&mut self, mixer: MixerAudio) -> Option<i16> {
-        let mut variable_value = None;
-        let ts = self.timestamp.elapsed().as_millis();
-        let since_last_call = ts - self.last_timestamp;
-        debug!("handle_events() {}", since_last_call);
-        self.last_timestamp = ts;
+    pub fn stop(&mut self) {
+        self.timer_guard.take();
+    }
 
-        if let Some(sfx_module) = &self.sfx_module {
-            let order = sfx_module.order_table[sfx_module.cur_order as usize] as usize;
-            let mut write_guard = loop {
-                if let Ok(write_guard) = mixer.0.write() {
-                    break write_guard;
+    pub fn handle_events(sfx_module: Arc<RwLock<SfxModule>>, mixer: MixerAudio) -> Option<i16> {
+        let mut variable_value = None;
+
+        let mut sfx_module = sfx_module.write().expect("Expected non-poisoned RwLock");
+        let order = sfx_module.order_table[sfx_module.cur_order as usize] as usize;
+        let mut mixer_guard = mixer.0.write().expect("Expected non-poisoned RwLock");
+        for ch in 0..4 {
+            let start = sfx_module.cur_pos + order * 1024 + ch * 4;
+            trace!("Start: {}", start);
+            let pattern_data = Buffer::new(&sfx_module.data[start..start + 4]);
+            let result = SfxPlayer::handle_pattern(&sfx_module, ch as u8, pattern_data);
+            match result {
+                Some(PatternResult::StopChannel(channel)) => mixer_guard.stop_channel(channel),
+                Some(PatternResult::MarkVariable(var)) => variable_value = Some(var as i16),
+                Some(PatternResult::Pattern(channel, pat)) => {
+                    trace!("Playing music");
+                    assert!(pat.note1 >= 0x37);
+                    assert!(pat.note1 < 0x1000);
+                    let freq = (7159092 / (pat.note1 * 2) as u32) as u16;
+                    let volume = pat.sample_volume;
+                    let chunk = MixerChunk::from_sfx_pattern(pat);
+                    mixer_guard.play_channel(channel, chunk, freq, volume as u8);
                 }
-                sleep(Duration::from_millis(10));
-            };
-            for ch in 0..4 {
-                let start = sfx_module.cur_pos + order * 1024 + ch * 4;
-                trace!("Start: {}", start);
-                let pattern_data = Buffer::new(&sfx_module.data[start..start + 4]);
-                let result = self.handle_pattern(ch as u8, pattern_data);
-                match result {
-                    Some(PatternResult::StopChannel(channel)) => write_guard.stop_channel(channel),
-                    Some(PatternResult::MarkVariable(var)) => variable_value = Some(var as i16),
-                    Some(PatternResult::Pattern(channel, pat)) => {
-                        trace!("Playing music");
-                        assert!(pat.note1 >= 0x37);
-                        assert!(pat.note1 < 0x1000);
-                        let freq = (7159092 / (pat.note1 * 2) as u32) as u16;
-                        let volume = pat.sample_volume;
-                        let chunk = MixerChunk::from_sfx_pattern(pat);
-                        write_guard.play_channel(channel, chunk, freq, volume as u8);
-                    }
-                    None => { }
-                }
+                None => { }
             }
         }
 
-        if let Some(sfx_module) = &mut self.sfx_module {
-            let order = sfx_module.order_table[sfx_module.cur_order as usize] as usize;
-            sfx_module.cur_pos += 4 * 4;
-            debug!("handle_events() order = 0x{:x} cur_pos = 0x{:x}", order, sfx_module.cur_pos);
-            if sfx_module.cur_pos >= 1024 {
-                sfx_module.cur_pos = 0;
-                let order = sfx_module.cur_order + 1;
-                if order == sfx_module.num_order {
-                    //STOP PLAYING
-                }
-                sfx_module.cur_order = order;
+        let order = sfx_module.order_table[sfx_module.cur_order as usize] as usize;
+        sfx_module.cur_pos += 4 * 4;
+        debug!("handle_events() order = 0x{:x} cur_pos = 0x{:x}", order, sfx_module.cur_pos);
+        if sfx_module.cur_pos >= 1024 {
+            sfx_module.cur_pos = 0;
+            let order = sfx_module.cur_order + 1;
+            if order == sfx_module.num_order {
+                //STOP PLAYING
             }
+            sfx_module.cur_order = order;
         }
         variable_value
     }
 
     fn handle_pattern(
-        &self,
+        sfx_module: &SfxModule,
         channel: u8,
         mut pattern_data: Buffer
     ) -> Option<PatternResult> {
@@ -203,8 +207,6 @@ impl SfxPlayer {
             let sample_index = ((note2 & 0xf000) >> 12) as usize;
             if sample_index != 0 {
                 trace!("Have sample index");
-                let sfx_module = self.sfx_module.as_ref()
-                    .expect("sfx_module should be available here");
                 let sample = sfx_module.samples[sample_index - 1].as_ref()
                     .expect("Expected some sample");
                 return Some(

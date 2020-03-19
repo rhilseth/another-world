@@ -87,13 +87,14 @@ impl Mixer {
         }
     }
 
-    pub fn _stop_all(&mut self) {
+    pub fn stop_all(&mut self) {
         for channel in self.channels.iter_mut() {
             channel.take();
         }
     }
 }
 
+#[derive(Clone)]
 pub struct MixerAudio(pub Arc<RwLock<Mixer>>);
 
 impl AudioCallback for MixerAudio {
