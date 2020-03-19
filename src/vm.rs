@@ -75,7 +75,7 @@ impl VirtualMachine {
         variables[0x54] = 0x81;
         variables[VM_VARIABLE_RANDOM_SEED] = random::<i16>();
         if cfg!(feature = "bypass_protection") {
-            variables[0xb6] = 0x10;
+            variables[0xbc] = 0x10;
             variables[0xc6] = 0x80;
             variables[0xf2] = 4000;
             variables[0xdc] = 33;
@@ -127,6 +127,7 @@ impl VirtualMachine {
     pub fn check_thread_requests(&mut self) {
         // Check if a part switch has been requested
         if let Some(part) = self.requested_next_part {
+            trace!("New part requested: {}", part);
             self.init_for_part(part);
             self.requested_next_part = None;
         }
@@ -143,6 +144,7 @@ impl VirtualMachine {
                     pc_offset
                 };
                 self.threads[thread_id].requested_pc_offset = None;
+                trace!("Setting thread {} pc to 0x{:x}", thread_id, self.threads[thread_id].pc);
             }
         }
     }
@@ -150,6 +152,7 @@ impl VirtualMachine {
     pub fn host_frame(&mut self) {
         for thread_id in 0..self.threads.len() {
             if self.threads[thread_id].is_channel_active_current {
+                trace!("Skip thread {}", thread_id);
                 continue;
             }
 
@@ -197,7 +200,7 @@ impl VirtualMachine {
                     self.variables[VM_VARIABLE_MUS_MARK] = value;
                 }
             }
-            //debug!("pc: 0x{:x} Decoding opcode", self.script_ptr);
+            trace!("pc: 0x{:x} Decoding opcode", self.script_ptr);
             let opcode = Opcode::decode(self.fetch_byte());
 
             match opcode {
@@ -332,7 +335,7 @@ impl VirtualMachine {
         } else {
             self.fetch_byte() as i16
         };
-        debug!("op_cond_jmp({}, 0x{:02x}, 0x{:02x})", opcode, b, a);
+        debug!("op_cond_jmp({}, 0x{:02x}, 0x{:02x}) var=0x{:02x}", opcode, b, a, var);
 
         let expr = match opcode & 7 {
             0 => b == a,
@@ -511,12 +514,12 @@ impl VirtualMachine {
         debug!("update_memlist({})", resource_id);
 
         if resource_id == 0 {
-            // self.player.stop();
-            // self.mixer.stop_all();
+            self.player.stop();
+            self.mixer.write().expect("Expected non-poisoned RwLock").stop_all();
             self.resource.invalidate_resource();
         } else {
             if resource_id >= parts::GAME_PART_FIRST {
-                warn!("Requesting new part {}", resource_id);
+                debug!("Requesting new part {}", resource_id);
                 self.requested_next_part = Some(resource_id);
             } else {
                 self.resource.load_memory_entry(resource_id);
