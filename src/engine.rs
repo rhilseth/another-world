@@ -19,7 +19,12 @@ impl Engine {
     }
 
     pub fn run(&mut self) {
-        self.vm.check_thread_requests();
-        self.vm.host_frame();
+        loop {
+            self.vm.check_thread_requests();
+            if !self.vm.update_player_input() {
+                return;
+            }
+            self.vm.host_frame();
+        }
     }
 }

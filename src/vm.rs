@@ -9,6 +9,7 @@ use crate::mixer;
 use crate::mixer::{Mixer, MixerAudio, MixerChunk};
 use crate::opcode::Opcode;
 use crate::parts;
+use crate::player::PlayerDirection;
 use crate::resource::Resource;
 use crate::sfxplayer::SfxPlayer;
 use crate::sys::SDLSys;
@@ -22,9 +23,15 @@ const COLOR_BLACK: u8 = 0xff;
 const DEFAULT_ZOOM: u16 = 0x40;
 const STACK_SIZE: usize = 0xff;
 
+const VM_VARIABLE_HERO_POS_UP_DOWN: usize = 0xe5;
 const VM_VARIABLE_MUS_MARK: usize = 0xf4;
 const VM_VARIABLE_RANDOM_SEED: usize = 0x3c;
 const VM_VARIABLE_SCROLL_Y: usize = 0xf9;
+const VM_VARIABLE_HERO_ACTION: usize = 0xfa;
+const VM_VARIABLE_HERO_POS_JUMP_DOWN: usize = 0xfb;
+const VM_VARIABLE_HERO_POS_LEFT_RIGHT: usize = 0xfc;
+const VM_VARIABLE_HERO_POS_MASK: usize = 0xfd;
+const VM_VARIABLE_HERO_ACTION_POS_MASK: usize = 0xfe;
 const VM_VARIABLE_PAUSE_SLICES: usize = 0xff;
 
 #[derive(Copy, Clone)]
@@ -147,6 +154,51 @@ impl VirtualMachine {
                 trace!("Setting thread {} pc to 0x{:x}", thread_id, self.threads[thread_id].pc);
             }
         }
+    }
+
+    pub fn update_player_input(&mut self) -> bool {
+        let input = self.sys.process_events();
+
+        if self.resource.current_part_id == 0x3e89 {
+
+        }
+
+        if input.quit {
+            return false;
+        }
+
+        let mut lr = 0;
+        let mut m = 0;
+        let mut ud = 0;
+        if input.direction.contains(PlayerDirection::RIGHT) {
+            lr = 1;
+            m |= 1;
+        }
+        if input.direction.contains(PlayerDirection::LEFT) {
+            lr = -1;
+            m |= 2;
+        }
+        if input.direction.contains(PlayerDirection::DOWN) {
+            ud = 1;
+            m |= 4;
+        }
+        if input.direction.contains(PlayerDirection::UP) {
+            ud = -1;
+            m |= 8;
+            self.variables[VM_VARIABLE_HERO_POS_UP_DOWN] = ud;
+        }
+        self.variables[VM_VARIABLE_HERO_POS_JUMP_DOWN] = ud;
+        self.variables[VM_VARIABLE_HERO_POS_LEFT_RIGHT] = lr;
+        self.variables[VM_VARIABLE_HERO_POS_MASK] = m;
+
+        self.variables[VM_VARIABLE_HERO_ACTION] = if input.button == true {
+            m |= 0x80;
+            1
+        } else {
+            0
+        };
+        self.variables[VM_VARIABLE_HERO_ACTION_POS_MASK] = m;
+        true
     }
 
     pub fn host_frame(&mut self) {

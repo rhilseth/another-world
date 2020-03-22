@@ -2,12 +2,16 @@ use log::debug;
 use std::sync::{Arc, RwLock};
 use std::{thread, time};
 
+use sdl2::EventPump;
 use sdl2::audio::{AudioDevice, AudioSpecDesired};
+use sdl2::event::Event;
+use sdl2::keyboard::Keycode;
 use sdl2::pixels::{Color, Palette, PixelFormatEnum};
 use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
 use sdl2::surface::Surface;
 
+use crate::player::{PlayerInput, PlayerDirection};
 use crate::mixer;
 use crate::video;
 
@@ -15,12 +19,15 @@ const SCREEN_W: u32 = 320;
 const SCREEN_H: u32 = 200;
 const _SOUND_SAMPLE_RATE: u16 = 22050;
 
+
 pub struct SDLSys {
     sdl_context: sdl2::Sdl,
     surface: Surface<'static>,
     canvas: WindowCanvas,
     audio_device: Option<AudioDevice<mixer::MixerAudio>>,
     timestamp: time::Instant,
+    event_pump: EventPump,
+    player_input: PlayerInput,
 }
 
 impl SDLSys {
@@ -37,12 +44,15 @@ impl SDLSys {
         canvas
             .set_logical_size(SCREEN_W, SCREEN_H)
             .expect("Expected logical size");
+        let event_pump = sdl_context.event_pump().unwrap();
         SDLSys {
             sdl_context,
             surface: Surface::new(SCREEN_W, SCREEN_H, PixelFormatEnum::Index8).unwrap(),
             canvas,
             audio_device: None,
             timestamp: time::Instant::now(),
+            event_pump,
+            player_input: PlayerInput::new(),
         }
     }
 
@@ -110,5 +120,39 @@ impl SDLSys {
 
         device.resume();
         self.audio_device = Some(device);
+    }
+
+    pub fn process_events(&mut self) -> PlayerInput {
+        for event in self.event_pump.poll_iter() {
+            match event {
+                Event::Quit { .. }
+                | Event::KeyDown {
+                    keycode: Some(Keycode::Escape),
+                    ..
+                } => self.player_input.quit = true,
+                Event::KeyDown { keycode, .. } => {
+                    match keycode.unwrap() {
+                        Keycode::Left => self.player_input.direction |= PlayerDirection::LEFT,
+                        Keycode::Right => self.player_input.direction |= PlayerDirection::RIGHT,
+                        Keycode::Up => self.player_input.direction |= PlayerDirection::UP,
+                        Keycode::Down => self.player_input.direction |= PlayerDirection::DOWN,
+                        Keycode::Space | Keycode::Return => self.player_input.button = true,
+                        _ => { }
+                    }
+                }
+                Event::KeyUp { keycode, .. } => {
+                    match keycode.unwrap() {
+                        Keycode::Left => self.player_input.direction &= !PlayerDirection::LEFT,
+                        Keycode::Right => self.player_input.direction &= !PlayerDirection::RIGHT,
+                        Keycode::Up => self.player_input.direction &= !PlayerDirection::UP,
+                        Keycode::Down => self.player_input.direction &= !PlayerDirection::DOWN,
+                        Keycode::Space | Keycode::Return => self.player_input.button = false,
+                        _ => { }
+                    }
+                }
+                _ => {}
+            }
+        }
+        self.player_input
     }
 }

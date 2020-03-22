@@ -76,7 +76,7 @@ pub struct MemEntry {
 pub struct Resource {
     mem_list: Vec<MemEntry>,
     pub memory: [u8; MEM_BLOCK_SIZE],
-    current_part_id: u16,
+    pub current_part_id: u16,
     script_bak_ptr: usize,
     script_cur_ptr: usize,
     vid_bak_ptr: usize,
