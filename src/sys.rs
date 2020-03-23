@@ -123,6 +123,7 @@ impl SDLSys {
     }
 
     pub fn process_events(&mut self) -> PlayerInput {
+        let mut last_char= '\0';
         for event in self.event_pump.poll_iter() {
             match event {
                 Event::Quit { .. }
@@ -137,6 +138,36 @@ impl SDLSys {
                         Keycode::Up => self.player_input.direction |= PlayerDirection::UP,
                         Keycode::Down => self.player_input.direction |= PlayerDirection::DOWN,
                         Keycode::Space | Keycode::Return => self.player_input.button = true,
+                        Keycode::Backspace => last_char = '\x08',
+                        Keycode::A => last_char = 'A',
+                        Keycode::B => last_char = 'B',
+                        Keycode::C => {
+                            self.player_input.code = true;
+                            last_char = 'C';
+                        },
+                        Keycode::D => last_char = 'D',
+                        Keycode::E => last_char = 'E',
+                        Keycode::F => last_char = 'F',
+                        Keycode::G => last_char = 'G',
+                        Keycode::H => last_char = 'H',
+                        Keycode::I => last_char = 'I',
+                        Keycode::J => last_char = 'J',
+                        Keycode::K => last_char = 'K',
+                        Keycode::L => last_char = 'L',
+                        Keycode::M => last_char = 'M',
+                        Keycode::N => last_char = 'N',
+                        Keycode::O => last_char = 'O',
+                        Keycode::P => last_char = 'P',
+                        Keycode::Q => last_char = 'Q',
+                        Keycode::R => last_char = 'R',
+                        Keycode::S => last_char = 'S',
+                        Keycode::T => last_char = 'T',
+                        Keycode::U => last_char = 'U',
+                        Keycode::V => last_char = 'V',
+                        Keycode::W => last_char = 'W',
+                        Keycode::X => last_char = 'X',
+                        Keycode::Y => last_char = 'Y',
+                        Keycode::Z => last_char = 'Z',
                         _ => { }
                     }
                 }
@@ -153,6 +184,9 @@ impl SDLSys {
                 _ => {}
             }
         }
-        self.player_input
+        self.player_input.last_char = last_char;
+        let result = self.player_input;
+        self.player_input.code = false;
+        result
     }
 }

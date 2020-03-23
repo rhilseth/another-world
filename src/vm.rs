@@ -23,9 +23,10 @@ const COLOR_BLACK: u8 = 0xff;
 const DEFAULT_ZOOM: u16 = 0x40;
 const STACK_SIZE: usize = 0xff;
 
+const VM_VARIABLE_RANDOM_SEED: usize = 0x3c;
+const VM_VARIABLE_LAST_KEYCHAR: usize = 0xda;
 const VM_VARIABLE_HERO_POS_UP_DOWN: usize = 0xe5;
 const VM_VARIABLE_MUS_MARK: usize = 0xf4;
-const VM_VARIABLE_RANDOM_SEED: usize = 0x3c;
 const VM_VARIABLE_SCROLL_Y: usize = 0xf9;
 const VM_VARIABLE_HERO_ACTION: usize = 0xfa;
 const VM_VARIABLE_HERO_POS_JUMP_DOWN: usize = 0xfb;
@@ -160,11 +161,22 @@ impl VirtualMachine {
         let input = self.sys.process_events();
 
         if self.resource.current_part_id == 0x3e89 {
-
+            let c = input.last_char;
+            if c == '\x08' || c == '\0' || (c >= 'A' && c <= 'Z') {
+                self.variables[VM_VARIABLE_LAST_KEYCHAR] = c as i16;
+            }
         }
 
         if input.quit {
             return false;
+        }
+
+        if input.code {
+            if self.resource.current_part_id != parts::GAME_PART_LAST
+                && self.resource.current_part_id != parts::GAME_PART_FIRST
+            {
+                self.requested_next_part = Some(parts::GAME_PART_LAST);
+            }
         }
 
         let mut lr = 0;
