@@ -180,8 +180,8 @@ impl Video {
                     h = h - vscroll;
                     dst_i += (vscroll * 160) as isize;
                 }
-                assert!(src_i > 0);
-                assert!(dst_i > 0);
+                assert!(src_i >= 0);
+                assert!(dst_i >= 0);
                 let dst_i_end = (dst_i + h * 160) as usize;
                 let dst_i = dst_i as usize;
                 let dst_slice = &mut self.pages[q].data[dst_i..dst_i_end];
