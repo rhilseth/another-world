@@ -197,8 +197,8 @@ impl VirtualMachine {
         if input.direction.contains(PlayerDirection::UP) {
             ud = -1;
             m |= 8;
-            self.variables[VM_VARIABLE_HERO_POS_UP_DOWN] = ud;
         }
+        self.variables[VM_VARIABLE_HERO_POS_UP_DOWN] = ud;
         self.variables[VM_VARIABLE_HERO_POS_JUMP_DOWN] = ud;
         self.variables[VM_VARIABLE_HERO_POS_LEFT_RIGHT] = lr;
         self.variables[VM_VARIABLE_HERO_POS_MASK] = m;
