@@ -328,9 +328,9 @@ impl VirtualMachine {
     fn op_add_const(&mut self) {
         // Insert gun sound hack here at some point
         let variable_id = self.fetch_byte() as usize;
-        let value = self.fetch_word();
+        let value = self.fetch_word() as i16;
         debug!("add_const(0x{:02x}, {})", variable_id, value);
-        self.variables[variable_id] = self.variables[variable_id].wrapping_add(value as i16);
+        self.variables[variable_id] = self.variables[variable_id].wrapping_add(value);
     }
 
     fn op_call(&mut self) {
@@ -449,17 +449,17 @@ impl VirtualMachine {
         let n = i - thread_id + 1;
         let a = self.fetch_byte();
 
-        debug!("reset_thread({}, {}, {}", thread_id, i, a);
+        debug!("reset_thread({}, {}, {})", thread_id, i, a);
 
         match a {
             0 | 1 => {
                 let val = a != 0;
-                for thread in thread_id..n {
+                for thread in thread_id..thread_id + n {
                     self.threads[thread].is_channel_active_requested = val;
                 }
             }
             2 => {
-                for thread in thread_id..n {
+                for thread in thread_id..thread_id + n {
                     self.threads[thread].requested_pc_offset = Some(SET_INACTIVE_THREAD);
                 }
             }
