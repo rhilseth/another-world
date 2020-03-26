@@ -141,18 +141,18 @@ impl VirtualMachine {
         }
 
         // Check if a PAUSE or JUMP has been requested
-        for thread_id in 0..NUM_THREADS {
-            let requested = self.threads[thread_id].is_channel_active_requested;
-            self.threads[thread_id].is_channel_active_current = requested;
+        for (thread_id, thread) in self.threads.iter_mut().enumerate() {
+            let requested = thread.is_channel_active_requested;
+            thread.is_channel_active_current = requested;
 
-            if let Some(pc_offset) = self.threads[thread_id].requested_pc_offset {
-                self.threads[thread_id].pc = if pc_offset == SET_INACTIVE_THREAD {
+            if let Some(pc_offset) = thread.requested_pc_offset {
+                thread.pc = if pc_offset == SET_INACTIVE_THREAD {
                     INACTIVE_THREAD
                 } else {
                     pc_offset
                 };
-                self.threads[thread_id].requested_pc_offset = None;
-                trace!("Setting thread {} pc to 0x{:x}", thread_id, self.threads[thread_id].pc);
+                thread.requested_pc_offset = None;
+                trace!("Setting thread {} pc to 0x{:x}", thread_id, thread.pc);
             }
         }
     }
