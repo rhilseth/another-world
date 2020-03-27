@@ -192,6 +192,11 @@ impl Video {
         }
     }
 
+    pub fn copy_page_buffer(&mut self, buffer: &[u8]) {
+        let dst_slice = &mut self.pages[0].data;
+        dst_slice.copy_from_slice(&buffer);
+    }
+
     pub fn draw_string(&mut self, color: u8, x: u16, y: u16, string_id: u16) {
         debug!("DrawString(0x{:04x}, {}, {}, {})", string_id, x, y, color);
         if let Some(entry) = STRINGS_TABLE_ENG.get(&string_id) {

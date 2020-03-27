@@ -118,7 +118,13 @@ impl VirtualMachine {
 
         self.resource.setup_part(part_id);
         if self.resource.copy_vid_ptr {
-            debug!("init_for_part copy_vid_ptr");
+            let video_page_data = self.resource.video_page_data();
+            debug!(
+                "init_for_part copy_vid_ptr: {}",
+                video_page_data.len()
+            );
+            self.video.copy_page_buffer(&video_page_data);
+            self.resource.copy_vid_ptr = false;
         }
         // copy
 
@@ -588,10 +594,12 @@ impl VirtualMachine {
             } else {
                 self.resource.load_memory_entry(resource_id);
                 if self.resource.copy_vid_ptr {
+                    let video_page_data = self.resource.video_page_data();
                     debug!(
                         "update_memlist copy_vid_ptr: {}",
-                        self.resource.video_page_data().len()
+                        video_page_data.len()
                     );
+                    self.video.copy_page_buffer(&video_page_data);
                     self.resource.copy_vid_ptr = false;
                 }
             }
