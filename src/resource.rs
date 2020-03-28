@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::SeekFrom;
+use std::path::{Path, PathBuf};
 
 use byteorder::{BigEndian, ByteOrder, ReadBytesExt};
 use log::{debug, warn};
@@ -86,10 +87,12 @@ pub struct Resource {
     pub seg_cinematic: usize,
     pub seg_video2: usize,
     pub copy_vid_ptr: bool,
+    asset_path: PathBuf,
+    use_amiga_assets: bool,
 }
 
 impl Resource {
-    pub fn new() -> Resource {
+    pub fn new(asset_path: PathBuf, use_amiga_assets: bool) -> Resource {
         Resource {
             mem_list: Vec::new(),
             memory: [0; MEM_BLOCK_SIZE],
@@ -103,11 +106,14 @@ impl Resource {
             seg_cinematic: 0,
             seg_video2: 0,
             copy_vid_ptr: false,
+            asset_path,
+            use_amiga_assets,
         }
     }
 
     pub fn read_memlist(&mut self) -> std::io::Result<()> {
-        let mut file = File::open("data/Memlist.bin")?;
+        let path = self.asset_path.join("Memlist.bin");
+        let mut file = File::open(path)?;
         self.read_entries(&mut file);
         Ok(())
     }
@@ -297,9 +303,13 @@ impl Resource {
         Some(SfxInstrument::new(data, volume))
     }
 
-    fn read_bank(mem_entry: &MemEntry) -> std::io::Result<Bank> {
-        let file_name = format!("data/Bank{:02x}", mem_entry.bank_id);
-        debug!("Reading bank: {}", file_name);
+    fn read_bank(asset_path: &Path, mem_entry: &MemEntry, amiga_path: bool) -> std::io::Result<Bank> {
+        let file_name = if amiga_path {
+            asset_path.join(format!("bank{:02X}", mem_entry.bank_id))
+        } else {
+            asset_path.join(format!("Bank{:02x}", mem_entry.bank_id))
+        };
+        debug!("Reading bank: {}", file_name.to_string_lossy());
         let mut file = File::open(file_name)?;
         file.seek(SeekFrom::Start(mem_entry.bank_offset as u64))?;
 
@@ -353,7 +363,8 @@ impl Resource {
                 continue;
             }
 
-            let bank = Resource::read_bank(&entry).expect("Could not read bank");
+            let bank = Resource::read_bank(&self.asset_path, &entry, self.use_amiga_assets)
+                .expect("Could not read bank");
             debug!("read_bank() rank_num: {} packed_size: 0x{:x} size: 0x{:x} type={:?} pos={:x} bank_id={:x}", entry.rank_num, entry.packed_size, entry.size, entry.entry_type, entry.bank_offset, entry.bank_id);
 
             let load_destination_end = load_destination + entry.size;

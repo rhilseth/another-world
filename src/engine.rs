@@ -6,15 +6,21 @@ pub struct Engine {
 }
 
 impl Engine {
-    #[cfg(feature = "bypass_protection")]
-    pub fn new(mut vm: VirtualMachine) -> Engine {
-        vm.init_for_part(parts::GAME_PART2);
-        Engine { vm }
-    }
-
-    #[cfg(not(feature = "bypass_protection"))]
-    pub fn new(mut vm: VirtualMachine) -> Engine {
-        vm.init_for_part(parts::GAME_PART1);
+    pub fn new(mut vm: VirtualMachine, part_num: u8) -> Engine {
+        let part = match part_num {
+            1 => parts::GAME_PART1,
+            2 => parts::GAME_PART2,
+            3 => parts::GAME_PART3,
+            4 => parts::GAME_PART4,
+            5 => parts::GAME_PART5,
+            6 => parts::GAME_PART6,
+            7 => parts::GAME_PART7,
+            8 => parts::GAME_PART8,
+            9 => parts::GAME_PART9,
+            10 => parts::GAME_PART10,
+            n => panic!("Unknown part number: {}", n),
+        };
+        vm.init_for_part(part);
         Engine { vm }
     }
 
