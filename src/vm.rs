@@ -82,12 +82,6 @@ impl VirtualMachine {
         let mut variables = [0; NUM_VARIABLES];
         variables[0x54] = 0x81;
         variables[VM_VARIABLE_RANDOM_SEED] = random::<i16>();
-        if cfg!(feature = "bypass_protection") {
-            variables[0xbc] = 0x10;
-            variables[0xc6] = 0x80;
-            variables[0xf2] = 4000;
-            variables[0xdc] = 33;
-        }
         let mixer = Arc::new(RwLock::new(Mixer::new()));
         sys.start_audio(mixer.clone());
         VirtualMachine {
@@ -107,6 +101,10 @@ impl VirtualMachine {
             last_timestamp: 0,
             variable_receiver: None,
         }
+    }
+
+    pub fn set_variable(&mut self, var: usize, value: i16) {
+        self.variables[var] = value;
     }
 
     pub fn init_for_part(&mut self, part_id: u16) {

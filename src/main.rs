@@ -30,6 +30,9 @@ struct Opt {
     /// Start with game part
     #[structopt(long, default_value = "2")]
     game_part: u8,
+    /// Disable protection bypass
+    #[structopt(long)]
+    no_bypass: bool
 }
 
 fn main() -> std::io::Result<()> {
@@ -42,7 +45,19 @@ fn main() -> std::io::Result<()> {
 
     let sys = sys::SDLSys::new(sdl_context);
     let video = video::Video::new();
-    let vm = vm::VirtualMachine::new(resource, video, sys);
+    let mut vm = vm::VirtualMachine::new(resource, video, sys);
+    if !opt.no_bypass {
+        vm.set_variable(0xbc, 0x10);
+        vm.set_variable(0xc6, 0x80);
+        vm.set_variable(0xdc, 33);
+        let value = if opt.amiga {
+            6000
+        } else {
+            4000
+        };
+        vm.set_variable(0xf2, value);
+    }
+
     let mut engine = engine::Engine::new(vm, opt.game_part);
 
     engine.run();

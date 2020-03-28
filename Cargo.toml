@@ -22,7 +22,3 @@ timer = "0.1"
 git = "https://github.com/Rust-SDL2/rust-sdl2.git"
 features = ["use_mac_framework"]
 
-[features]
-default = ["bypass_protection"]
-
-bypass_protection = []
