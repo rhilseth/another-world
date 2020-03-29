@@ -208,9 +208,9 @@ impl Resource {
                     self.memory[off + 8000 * 1],
                     self.memory[off + 8000 * 0],
                 ];
-                for _j in 0..4 {
+                for _j in 0..8 {
                     let mut acc = 0;
-                    for i in 0..8 {
+                    for i in 0..4 {
                         acc <<= 1;
                         acc |= if (p[i & 3] & 0x80) > 0 { 1 } else { 0 };
                         p[i & 3] <<= 1;

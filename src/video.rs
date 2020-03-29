@@ -7,7 +7,9 @@ use crate::strings::STRINGS_TABLE_ENG;
 use crate::sys::SDLSys;
 
 const MAX_POINTS: usize = 50;
-const VID_PAGE_SIZE: usize = 320 * 200 / 2;
+const WIDTH: usize = 320;
+const HEIGHT: usize = 200;
+const VID_PAGE_SIZE: usize = WIDTH * HEIGHT;
 const NUM_COLORS: usize = 16;
 
 #[derive(Copy, Clone)]
@@ -144,15 +146,16 @@ impl Video {
         let page_id = self.get_page_id(page_id);
         let page = &mut self.pages[page_id];
 
-        let c = (color << 4) | color;
         for b in page.data.iter_mut() {
-            *b = c;
+            *b = color;
         }
     }
 
     pub fn copy_page(&mut self, src_page_id: u8, dst_page_id: u8, vscroll: i16) {
         debug!("copy_page({}, {})", src_page_id, dst_page_id);
         let vscroll = vscroll as isize;
+        let width = WIDTH as isize;
+        let height = HEIGHT as isize;
         let mut src_page_id = src_page_id;
         if src_page_id == dst_page_id {
             return;
@@ -171,21 +174,21 @@ impl Video {
             let q = self.get_page_id(dst_page_id);
             let mut src_i = 0;
             let mut dst_i = 0;
-            if vscroll >= -199 && vscroll <= 199 {
-                let mut h: isize = 200;
+            if vscroll >= -(height - 1) && vscroll < height {
+                let mut h: isize = height;
                 if vscroll < 0 {
                     h = h + vscroll;
-                    src_i += (-vscroll * 160) as isize;
+                    src_i += -vscroll * width;
                 } else {
                     h = h - vscroll;
-                    dst_i += (vscroll * 160) as isize;
+                    dst_i += vscroll * width;
                 }
                 assert!(src_i >= 0);
                 assert!(dst_i >= 0);
-                let dst_i_end = (dst_i + h * 160) as usize;
+                let dst_i_end = (dst_i + h * width) as usize;
                 let dst_i = dst_i as usize;
                 let dst_slice = &mut self.pages[q].data[dst_i..dst_i_end];
-                let src_i_end = (src_i + h * 160) as usize;
+                let src_i_end = (src_i + h * width) as usize;
                 let src_i = src_i as usize;
                 dst_slice.copy_from_slice(&src_page.data[src_i..src_i_end]);
             }
@@ -287,13 +290,14 @@ impl Video {
             self.draw_point(color, point);
             return;
         }
-
+        let width = WIDTH as i16;
+        let height = HEIGHT as i16;
         let mut x1 = point.x - polygon.bbw as i16 / 2;
         let mut x2 = point.x + polygon.bbw as i16 / 2;
         let y1 = point.y - polygon.bbh as i16 / 2;
         let y2 = point.y + polygon.bbh as i16 / 2;
 
-        if x1 > 319 || x2 < 0 || y1 > 199 || y2 < 0 {
+        if x1 >= width || x2 < 0 || y1 >= height || y2 < 0 {
             return;
         }
 
@@ -350,7 +354,7 @@ impl Video {
                     cpt1 = (cpt1 as i64 + step1 as i64) as u32;
                     cpt2 = (cpt2 as i64 + step2 as i64) as u32;
                     hliney += 1;
-                    if hliney > 199 {
+                    if hliney >= height {
                         return;
                     }
                 }
@@ -362,36 +366,14 @@ impl Video {
         debug!("draw_line_n({}, {}, {})", x1, x2, color);
         let xmax = cmp::max(x1, x2);
         let xmin = cmp::min(x1, x2);
-        let mut offset = (hliney * 160 + xmin / 2) as usize;
+        let mut offset = (hliney as i32 * WIDTH as i32 + xmin as i32) as usize;
 
-        let mut w = (xmax / 2 - xmin / 2 + 1) as u16;
-        let mut cmaske: u8 = 0;
-        let mut cmasks: u8 = 0;
+        let mut w = (xmax - xmin + 1) as u16;
 
-        if xmin & 1 > 0 {
-            w -= 1;
-            cmasks = 0xf0;
-        }
-
-        if xmax & 1 == 0 {
-            w -= 1;
-            cmaske = 0x0f;
-        }
-
-        let colb = ((color & 0xf) << 4) | (color & 0xf);
-        if cmasks != 0 {
-            self.pages[self.cur_page_ptr1].data[offset] =
-                (self.pages[self.cur_page_ptr1].data[offset] & cmasks) | (colb & 0x0f);
-            offset += 1;
-        }
         while w > 0 {
-            self.pages[self.cur_page_ptr1].data[offset] = colb;
+            self.pages[self.cur_page_ptr1].data[offset] = color;
             offset += 1;
             w -= 1;
-        }
-        if cmaske != 0 {
-            self.pages[self.cur_page_ptr1].data[offset] =
-                (self.pages[self.cur_page_ptr1].data[offset] & cmaske) | (colb & 0xf0);
         }
     }
 
@@ -399,37 +381,13 @@ impl Video {
         debug!("draw_line_p({}, {}, {})", x1, x2, color);
         let xmax = cmp::max(x1, x2);
         let xmin = cmp::min(x1, x2);
-        let mut offset = (hliney * 160 + xmin / 2) as usize;
+        let mut offset = (hliney as i32 * WIDTH as i32 + xmin as i32) as usize;
 
-        let mut w = (xmax / 2 - xmin / 2 + 1) as u16;
-        let mut cmaske: u8 = 0;
-        let mut cmasks: u8 = 0;
-
-        if xmin & 1 > 0 {
-            w -= 1;
-            cmasks = 0xf0;
-        }
-
-        if xmax & 1 == 0 {
-            w -= 1;
-            cmaske = 0x0f;
-        }
-
-        if cmasks != 0 {
-            let p = self.pages[self.cur_page_ptr1].data[offset];
-            let q = self.pages[0].data[offset];
-            self.pages[self.cur_page_ptr1].data[offset] = (p & cmasks) | (q & 0x0f);
-            offset += 1;
-        }
+        let mut w = (xmax - xmin + 1) as u16;
         while w > 0 {
             self.pages[self.cur_page_ptr1].data[offset] = self.pages[0].data[offset];
             offset += 1;
             w -= 1;
-        }
-        if cmaske != 0 {
-            let p = self.pages[self.cur_page_ptr1].data[offset];
-            let q = self.pages[0].data[offset];
-            self.pages[self.cur_page_ptr1].data[offset] = (p & cmaske) | (q & 0xf0);
         }
     }
 
@@ -437,60 +395,23 @@ impl Video {
         debug!("draw_line_blend({}, {}, {})", x1, x2, color);
         let xmax = cmp::max(x1, x2);
         let xmin = cmp::min(x1, x2);
-        let mut offset = (hliney * 160 + xmin / 2) as usize;
+        let mut offset = (hliney as i32 * WIDTH as i32 + xmin as i32) as usize;
 
-        let mut w = (xmax / 2 - xmin / 2 + 1) as u16;
-        let mut cmaske: u8 = 0;
-        let mut cmasks: u8 = 0;
-
-        if xmin & 1 > 0 {
-            w -= 1;
-            cmasks = 0xf7;
-        }
-
-        if xmax & 1 == 0 {
-            w -= 1;
-            cmaske = 0x7f;
-        }
-
-        if cmasks != 0 {
-            let p = self.pages[self.cur_page_ptr1].data[offset];
-            self.pages[self.cur_page_ptr1].data[offset] = (p & cmasks) | 0x08;
-            offset += 1;
-        }
+        let mut w = (xmax - xmin + 1) as u16;
         while w > 0 {
             let p = self.pages[self.cur_page_ptr1].data[offset];
-            self.pages[self.cur_page_ptr1].data[offset] = (p & 0x77) | 0x88;
+            self.pages[self.cur_page_ptr1].data[offset] = (p & 0x77) | 0x08;
             offset += 1;
             w -= 1;
-        }
-        if cmaske != 0 {
-            let p = self.pages[self.cur_page_ptr1].data[offset];
-            self.pages[self.cur_page_ptr1].data[offset] = (p & cmaske) | 0x80;
         }
     }
 
     fn draw_point(&mut self, color: u8, point: Point) {
         debug!("draw_point({}, {:?})", color, point);
-        if point.x >= 0 && point.x <= 319 && point.y >= 0 && point.y <= 199 {
-            let offset = (point.y * 160 + point.x / 2) as usize;
+        if point.x >= 0 && point.x < WIDTH as i16 && point.y >= 0 && point.y < HEIGHT as i16 {
+            let offset = (point.y as i32 * WIDTH as i32 + point.x as i32) as usize;
 
-            let (mut cmasko, mut cmaskn) = if point.x & 1 > 0 {
-                (0xf0, 0x0f)
-            } else {
-                (0x0f, 0xf0)
-            };
-
-            let mut colb = (color << 4) | color;
-            if color == 0x10 {
-                cmaskn &= 0x88;
-                cmasko = !cmaskn;
-                colb = 0x88;
-            } else if color == 0x11 {
-                colb = self.pages[0].data[offset];
-            }
-            let b = self.pages[self.cur_page_ptr1].data[offset];
-            self.pages[self.cur_page_ptr1].data[offset] = (b & cmasko) | (colb & cmaskn);
+            self.pages[self.cur_page_ptr1].data[offset] = color;
         }
     }
 
@@ -509,29 +430,19 @@ impl Video {
 
             let x = x as usize;
             let y = y as usize;
-            let mut p = x * 4 + y * 160;
+            let mut p = x * 8 + y * WIDTH;
 
             let buffer = &mut self.pages[page_off].data;
 
             for j in 0..8 {
                 let mut ch = font_char[j];
-                for i in 0..4 {
-                    let b = &buffer[p + i];
-                    let mut cmask = 0xff;
-                    let mut colb = 0;
+                for i in 0..8 {
                     if ch & 0x80 > 0 {
-                        colb |= color << 4;
-                        cmask &= 0x0f;
+                        buffer[p + i] = color;
                     }
                     ch <<= 1;
-                    if ch & 0x80 > 0 {
-                        colb |= color;
-                        cmask &= 0xf0;
-                    }
-                    ch <<= 1;
-                    buffer[p + i] = (b & cmask) | colb;
                 }
-                p += 160;
+                p += WIDTH;
             }
         }
     }

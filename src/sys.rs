@@ -74,10 +74,9 @@ impl SDLSys {
         self.surface.with_lock_mut(|p| {
             for j in 0..(SCREEN_H as usize) {
                 let p_offset = pitch * j;
-                let page_offset = j * ((SCREEN_W / 2) as usize);
-                for i in 0..((SCREEN_W / 2) as usize) {
-                    p[p_offset + (i * 2 + 0)] = page.data[page_offset + i] >> 4;
-                    p[p_offset + (i * 2 + 1)] = page.data[page_offset + i] & 0xf;
+                let page_offset = j * ((SCREEN_W) as usize);
+                for i in 0..((SCREEN_W) as usize) {
+                    p[p_offset + i] = page.data[page_offset + i];
                 }
             }
         });
