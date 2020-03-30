@@ -7,8 +7,8 @@ use crate::strings::STRINGS_TABLE_ENG;
 use crate::sys::SDLSys;
 
 const MAX_POINTS: usize = 50;
-const WIDTH: usize = 320;
-const HEIGHT: usize = 200;
+const WIDTH: usize = 640;
+const HEIGHT: usize = 400;
 const VID_PAGE_SIZE: usize = WIDTH * HEIGHT;
 const NUM_COLORS: usize = 16;
 
@@ -59,6 +59,7 @@ struct Polygon {
 
 impl Polygon {
     pub fn read_vertices(buffer: &mut Buffer, zoom: u16) -> Polygon {
+        let zoom = zoom * 2;
         let bbw = buffer.fetch_byte() as u16 * zoom / 64;
         let bbh = buffer.fetch_byte() as u16 * zoom / 64;
         let num_points = buffer.fetch_byte() as usize;
@@ -250,17 +251,17 @@ impl Video {
         let mut pt = point;
         let zoom32 = zoom as i32;
         pt.x =
-            pt.x.wrapping_sub((buffer.fetch_byte() as i32 * zoom32 / 64) as i16);
+            pt.x.wrapping_sub((buffer.fetch_byte() as i32 * 2 * zoom32 / 64) as i16);
         pt.y =
-            pt.y.wrapping_sub((buffer.fetch_byte() as i32 * zoom32 / 64) as i16);
+            pt.y.wrapping_sub((buffer.fetch_byte() as i32 * 2 * zoom32 / 64) as i16);
 
         let children = buffer.fetch_byte() as usize + 1;
         debug!("read_and_draw_polygon_hierarchy children={}", children);
         for _ in 0..children {
             let mut offset = buffer.fetch_word() as usize;
 
-            let x = (buffer.fetch_byte() as i32 * zoom32 / 64) as i16;
-            let y = (buffer.fetch_byte() as i32 * zoom32 / 64) as i16;
+            let x = (buffer.fetch_byte() as i32 * 2 * zoom32 / 64) as i16;
+            let y = (buffer.fetch_byte() as i32 * 2 * zoom32 / 64) as i16;
             let po = Point {
                 x: pt.x.wrapping_add(x),
                 y: pt.y.wrapping_add(y),
@@ -336,12 +337,12 @@ impl Video {
                     if hliney >= 0 {
                         x1 = (cpt1 >> 16) as i16;
                         x2 = (cpt2 >> 16) as i16;
-                        if x1 <= 319 && x2 >= 0 {
+                        if x1 < width && x2 >= 0 {
                             if x1 < 0 {
                                 x1 = 0;
                             }
-                            if x2 > 319 {
-                                x2 = 319;
+                            if x2 >= width {
+                                x2 = width - 1;
                             }
                             match color {
                                 0..=0x0f => self.draw_line_n(x1, x2, color, hliney),

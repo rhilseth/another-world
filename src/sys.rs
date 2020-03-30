@@ -15,8 +15,8 @@ use crate::player::{PlayerInput, PlayerDirection};
 use crate::mixer;
 use crate::video;
 
-const SCREEN_W: u32 = 320;
-const SCREEN_H: u32 = 200;
+const SCREEN_W: u32 = 640;
+const SCREEN_H: u32 = 400;
 
 pub struct SDLSys {
     sdl_context: sdl2::Sdl,
