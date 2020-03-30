@@ -17,8 +17,6 @@ use crate::video;
 
 const SCREEN_W: u32 = 320;
 const SCREEN_H: u32 = 200;
-const _SOUND_SAMPLE_RATE: u16 = 22050;
-
 
 pub struct SDLSys {
     sdl_context: sdl2::Sdl,
@@ -105,7 +103,7 @@ impl SDLSys {
         let audio_subsystem = self.sdl_context.audio().unwrap();
 
         let desired_spec = AudioSpecDesired {
-            freq: Some(22050),
+            freq: Some(mixer::SOUND_SAMPLE_RATE as i32),
             channels: Some(1),
             samples: None,
         };

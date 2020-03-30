@@ -79,7 +79,7 @@ impl Polygon {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct Page {
     pub data: [u8; VID_PAGE_SIZE],
 }
@@ -110,7 +110,7 @@ pub struct Video {
 impl Video {
     pub fn new() -> Video {
         Video {
-            pages: [Page::new(); 4],
+            pages: [Page::new(), Page::new(), Page::new(), Page::new()],
             palette_requested: None,
             cur_page_ptr1: 2,
             cur_page_ptr2: 2,
@@ -167,10 +167,9 @@ impl Video {
             }
             let src_page = self.get_page(src_page_id);
             let q = self.get_page_id(dst_page_id);
-            self.pages[q] = src_page;
+            self.pages[q] = src_page.clone();
         } else {
-            src_page_id = src_page_id & 0xbf;
-            let src_page = self.get_page(src_page_id & 3);
+            let src_page = self.get_page(src_page_id & 3).clone();
             let q = self.get_page_id(dst_page_id);
             let mut src_i = 0;
             let mut dst_i = 0;
@@ -460,7 +459,7 @@ impl Video {
         }
     }
 
-    fn get_page(&self, page_id: u8) -> Page {
-        self.pages[self.get_page_id(page_id)]
+    fn get_page(&self, page_id: u8) -> &Page {
+        &self.pages[self.get_page_id(page_id)]
     }
 }

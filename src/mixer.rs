@@ -16,6 +16,8 @@ pub const FREQUENCE_TABLE: [u16; 40] = [
 
 const NUM_CHANNELS: usize = 4;
 
+pub const SOUND_SAMPLE_RATE: u32 = 22050;
+
 fn add_clamp(a: i16, b: i16) -> i8 {
     let mut add = a + b;
     if add < -128 {
@@ -158,12 +160,11 @@ struct MixerChannel {
 
 impl MixerChannel {
     pub fn new(volume: u8, chunk: MixerChunk, frequency: u32) -> MixerChannel {
-        //debug!("freq: {}, outputSampleRate(): 22050, chunkInc: {}", frequency, ((frequency << 8) / 22050));
         MixerChannel {
             volume,
             chunk,
             chunk_pos: 0,
-            chunk_inc: ((frequency << 8) / 22050) as usize,
+            chunk_inc: ((frequency << 8) / SOUND_SAMPLE_RATE) as usize,
         }
     }
 }
