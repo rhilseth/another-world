@@ -7,8 +7,8 @@ use crate::strings::STRINGS_TABLE_ENG;
 use crate::sys::SDLSys;
 
 const MAX_POINTS: usize = 50;
-const WIDTH: usize = 640;
-const HEIGHT: usize = 400;
+pub const WIDTH: usize = 640;
+pub const HEIGHT: usize = 400;
 const VID_PAGE_SIZE: usize = WIDTH * HEIGHT;
 const NUM_COLORS: usize = 16;
 
@@ -249,19 +249,19 @@ impl Video {
 
     fn read_and_draw_polygon_hierarchy(&mut self, buffer: &mut Buffer, zoom: u16, point: Point) {
         let mut pt = point;
-        let zoom32 = zoom as i32;
+        let zoom32 = zoom as i32 * 2;
         pt.x =
-            pt.x.wrapping_sub((buffer.fetch_byte() as i32 * 2 * zoom32 / 64) as i16);
+            pt.x.wrapping_sub((buffer.fetch_byte() as i32 * zoom32 / 64) as i16);
         pt.y =
-            pt.y.wrapping_sub((buffer.fetch_byte() as i32 * 2 * zoom32 / 64) as i16);
+            pt.y.wrapping_sub((buffer.fetch_byte() as i32 * zoom32 / 64) as i16);
 
         let children = buffer.fetch_byte() as usize + 1;
         debug!("read_and_draw_polygon_hierarchy children={}", children);
         for _ in 0..children {
             let mut offset = buffer.fetch_word() as usize;
 
-            let x = (buffer.fetch_byte() as i32 * 2 * zoom32 / 64) as i16;
-            let y = (buffer.fetch_byte() as i32 * 2 * zoom32 / 64) as i16;
+            let x = (buffer.fetch_byte() as i32 * zoom32 / 64) as i16;
+            let y = (buffer.fetch_byte() as i32 * zoom32 / 64) as i16;
             let po = Point {
                 x: pt.x.wrapping_add(x),
                 y: pt.y.wrapping_add(y),

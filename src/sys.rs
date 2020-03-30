@@ -15,9 +15,6 @@ use crate::player::{PlayerInput, PlayerDirection};
 use crate::mixer;
 use crate::video;
 
-const SCREEN_W: u32 = 640;
-const SCREEN_H: u32 = 400;
-
 pub struct SDLSys {
     sdl_context: sdl2::Sdl,
     surface: Surface<'static>,
@@ -38,14 +35,16 @@ impl SDLSys {
             .build()
             .unwrap();
 
+        let screen_width = video::WIDTH as u32;
+        let screen_height = video::HEIGHT as u32;
         let mut canvas = window.into_canvas().build().expect("Expected canvas");
         canvas
-            .set_logical_size(SCREEN_W, SCREEN_H)
+            .set_logical_size(screen_width, screen_height)
             .expect("Expected logical size");
         let event_pump = sdl_context.event_pump().unwrap();
         SDLSys {
             sdl_context,
-            surface: Surface::new(SCREEN_W, SCREEN_H, PixelFormatEnum::Index8).unwrap(),
+            surface: Surface::new(screen_width, screen_height, PixelFormatEnum::Index8).unwrap(),
             canvas,
             audio_device: None,
             timestamp: time::Instant::now(),
@@ -70,10 +69,10 @@ impl SDLSys {
         debug!("update_display()");
         let pitch = self.surface.pitch() as usize;
         self.surface.with_lock_mut(|p| {
-            for j in 0..(SCREEN_H as usize) {
+            for j in 0..video::HEIGHT {
                 let p_offset = pitch * j;
-                let page_offset = j * ((SCREEN_W) as usize);
-                for i in 0..((SCREEN_W) as usize) {
+                let page_offset = j * video::WIDTH;
+                for i in 0..video::WIDTH {
                     p[p_offset + i] = page.data[page_offset + i];
                 }
             }
@@ -84,7 +83,11 @@ impl SDLSys {
             .unwrap();
         self.canvas.clear();
         self.canvas
-            .copy(&texture, None, Some(Rect::new(0, 0, SCREEN_W, SCREEN_H)))
+            .copy(
+                &texture,
+                None,
+                Some(Rect::new(0, 0, video::WIDTH as u32, video::HEIGHT as u32))
+            )
             .unwrap();
         self.canvas.present();
     }

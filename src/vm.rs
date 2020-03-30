@@ -13,7 +13,7 @@ use crate::player::PlayerDirection;
 use crate::resource::Resource;
 use crate::sfxplayer::SfxPlayer;
 use crate::sys::SDLSys;
-use crate::video::{Palette, Point, Video};
+use crate::video::{HEIGHT, Palette, Point, Video};
 
 const NUM_VARIABLES: usize = 256;
 const NUM_THREADS: usize = 64;
@@ -671,7 +671,7 @@ impl VirtualMachine {
         };
         let mut buffer = Buffer::with_offset(&self.resource.memory[segment..], offset);
         let color = 0xff;
-        let point = Point { x:x*2, y:y*2 };
+        let point = Point { x: x * 2, y: y * 2 };
         self.video
             .read_and_draw_polygon(&mut buffer, color, zoom, point);
     }
@@ -687,9 +687,9 @@ impl VirtualMachine {
 
         let mut x = self.fetch_byte() as i16;
         let mut y = self.fetch_byte() as i16;
-        let h = y - 399;
+        let h = y - (HEIGHT - 1) as i16;
         if h > 0 {
-            y = 399;
+            y = HEIGHT as i16 - 1;
             x += h;
         }
         debug!(
@@ -699,7 +699,7 @@ impl VirtualMachine {
 
         let mut buffer =
             Buffer::with_offset(&self.resource.memory[self.resource.seg_cinematic..], offset);
-        let point = Point { x:x*2, y:y*2 };
+        let point = Point { x: x * 2, y: y * 2 };
         self.video
             .read_and_draw_polygon(&mut buffer, COLOR_BLACK, DEFAULT_ZOOM, point);
     }
