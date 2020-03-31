@@ -13,6 +13,7 @@ use crate::player::PlayerDirection;
 use crate::resource::Resource;
 use crate::sfxplayer::SfxPlayer;
 use crate::sys::SDLSys;
+use crate::util;
 use crate::video::{Palette, Point, Video};
 
 const NUM_VARIABLES: usize = 256;
@@ -118,11 +119,14 @@ impl VirtualMachine {
 
         self.resource.setup_part(part_id);
         if self.resource.copy_vid_ptr {
-            let video_page_data = self.resource.video_page_data();
+            let mut video_page_data = self.resource.video_page_data();
             debug!(
                 "init_for_part copy_vid_ptr: {}",
                 video_page_data.len()
             );
+            if self.zoom_factor != 1 {
+                video_page_data = util::resize(&video_page_data, self.zoom_factor);
+            }
             self.video.copy_page_buffer(&video_page_data);
             self.resource.copy_vid_ptr = false;
         }
@@ -594,11 +598,14 @@ impl VirtualMachine {
             } else {
                 self.resource.load_memory_entry(resource_id);
                 if self.resource.copy_vid_ptr {
-                    let video_page_data = self.resource.video_page_data();
+                    let mut video_page_data = self.resource.video_page_data();
                     debug!(
                         "update_memlist copy_vid_ptr: {}",
                         video_page_data.len()
                     );
+                    if self.zoom_factor != 1 {
+                        video_page_data = util::resize(&video_page_data, self.zoom_factor);
+                    }
                     self.video.copy_page_buffer(&video_page_data);
                     self.resource.copy_vid_ptr = false;
                 }

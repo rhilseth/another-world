@@ -15,6 +15,7 @@ mod resource;
 mod sfxplayer;
 mod strings;
 mod sys;
+mod util;
 mod video;
 mod vm;
 
