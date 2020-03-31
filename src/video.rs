@@ -7,9 +7,6 @@ use crate::strings::STRINGS_TABLE_ENG;
 use crate::sys::SDLSys;
 
 const MAX_POINTS: usize = 50;
-pub const WIDTH: usize = 640;
-pub const HEIGHT: usize = 400;
-const VID_PAGE_SIZE: usize = WIDTH * HEIGHT;
 const NUM_COLORS: usize = 16;
 
 #[derive(Copy, Clone)]
@@ -59,7 +56,6 @@ struct Polygon {
 
 impl Polygon {
     pub fn read_vertices(buffer: &mut Buffer, zoom: u16) -> Polygon {
-        let zoom = zoom * 2;
         let bbw = buffer.fetch_byte() as u16 * zoom / 64;
         let bbh = buffer.fetch_byte() as u16 * zoom / 64;
         let num_points = buffer.fetch_byte() as usize;
@@ -82,13 +78,13 @@ impl Polygon {
 
 #[derive(Clone)]
 pub struct Page {
-    pub data: [u8; VID_PAGE_SIZE],
+    pub data: Vec<u8>,
 }
 
 impl Page {
-    pub fn new() -> Page {
+    pub fn new(page_size: usize) -> Page {
         Page {
-            data: [0; VID_PAGE_SIZE],
+            data: vec![0; page_size],
         }
     }
 }
@@ -106,16 +102,22 @@ pub struct Video {
     cur_page_ptr1: usize,
     cur_page_ptr2: usize,
     cur_page_ptr3: usize,
+    pub width: usize,
+    pub height: usize,
 }
 
 impl Video {
-    pub fn new() -> Video {
+    pub fn new(width: usize, height: usize) -> Video {
+        let page_size = width * height;
+        let page = Page::new(page_size);
         Video {
-            pages: [Page::new(), Page::new(), Page::new(), Page::new()],
+            pages: [page.clone(), page.clone(), page.clone(), page],
             palette_requested: None,
             cur_page_ptr1: 2,
             cur_page_ptr2: 2,
             cur_page_ptr3: 1,
+            width,
+            height,
         }
     }
 
@@ -155,8 +157,8 @@ impl Video {
     pub fn copy_page(&mut self, src_page_id: u8, dst_page_id: u8, vscroll: i16) {
         debug!("copy_page({}, {})", src_page_id, dst_page_id);
         let vscroll = vscroll as isize;
-        let width = WIDTH as isize;
-        let height = HEIGHT as isize;
+        let width = self.width as isize;
+        let height = self.height as isize;
         let mut src_page_id = src_page_id;
         if src_page_id == dst_page_id {
             return;
@@ -249,7 +251,7 @@ impl Video {
 
     fn read_and_draw_polygon_hierarchy(&mut self, buffer: &mut Buffer, zoom: u16, point: Point) {
         let mut pt = point;
-        let zoom32 = zoom as i32 * 2;
+        let zoom32 = zoom as i32;
         pt.x =
             pt.x.wrapping_sub((buffer.fetch_byte() as i32 * zoom32 / 64) as i16);
         pt.y =
@@ -290,8 +292,8 @@ impl Video {
             self.draw_point(color, point);
             return;
         }
-        let width = WIDTH as i16;
-        let height = HEIGHT as i16;
+        let width = self.width as i16;
+        let height = self.height as i16;
         let mut x1 = point.x - polygon.bbw as i16 / 2;
         let mut x2 = point.x + polygon.bbw as i16 / 2;
         let y1 = point.y - polygon.bbh as i16 / 2;
@@ -366,7 +368,7 @@ impl Video {
         debug!("draw_line_n({}, {}, {})", x1, x2, color);
         let xmax = cmp::max(x1, x2);
         let xmin = cmp::min(x1, x2);
-        let mut offset = (hliney as i32 * WIDTH as i32 + xmin as i32) as usize;
+        let mut offset = (hliney as i32 * self.width as i32 + xmin as i32) as usize;
 
         let mut w = (xmax - xmin + 1) as u16;
 
@@ -381,7 +383,7 @@ impl Video {
         debug!("draw_line_p({}, {}, {})", x1, x2, color);
         let xmax = cmp::max(x1, x2);
         let xmin = cmp::min(x1, x2);
-        let mut offset = (hliney as i32 * WIDTH as i32 + xmin as i32) as usize;
+        let mut offset = (hliney as i32 * self.width as i32 + xmin as i32) as usize;
 
         let mut w = (xmax - xmin + 1) as u16;
         while w > 0 {
@@ -395,7 +397,7 @@ impl Video {
         debug!("draw_line_blend({}, {}, {})", x1, x2, color);
         let xmax = cmp::max(x1, x2);
         let xmin = cmp::min(x1, x2);
-        let mut offset = (hliney as i32 * WIDTH as i32 + xmin as i32) as usize;
+        let mut offset = (hliney as i32 * self.width as i32 + xmin as i32) as usize;
 
         let mut w = (xmax - xmin + 1) as u16;
         while w > 0 {
@@ -408,8 +410,8 @@ impl Video {
 
     fn draw_point(&mut self, color: u8, point: Point) {
         debug!("draw_point({}, {:?})", color, point);
-        if point.x >= 0 && point.x < WIDTH as i16 && point.y >= 0 && point.y < HEIGHT as i16 {
-            let offset = (point.y as i32 * WIDTH as i32 + point.x as i32) as usize;
+        if point.x >= 0 && point.x < self.width as i16 && point.y >= 0 && point.y < self.height as i16 {
+            let offset = (point.y as i32 * self.width as i32 + point.x as i32) as usize;
 
             self.pages[self.cur_page_ptr1].data[offset] = color;
         }
@@ -430,7 +432,7 @@ impl Video {
 
             let x = x as usize;
             let y = y as usize;
-            let mut p = x * 8 + y * WIDTH;
+            let mut p = x * 8 + y * self.width;
 
             let buffer = &mut self.pages[page_off].data;
 
@@ -442,7 +444,7 @@ impl Video {
                     }
                     ch <<= 1;
                 }
-                p += WIDTH;
+                p += self.width;
             }
         }
     }

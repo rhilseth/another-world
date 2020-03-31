@@ -32,7 +32,10 @@ struct Opt {
     game_part: u8,
     /// Disable protection bypass
     #[structopt(long)]
-    no_bypass: bool
+    no_bypass: bool,
+    /// Enable hires graphics
+    #[structopt(long)]
+    hires: bool,
 }
 
 fn main() -> std::io::Result<()> {
@@ -43,9 +46,15 @@ fn main() -> std::io::Result<()> {
 
     let sdl_context = sdl2::init().unwrap();
 
-    let sys = sys::SDLSys::new(sdl_context);
-    let video = video::Video::new();
-    let mut vm = vm::VirtualMachine::new(resource, video, sys);
+    let (width, height, zoom) = if opt.hires {
+        (640, 400, 2)
+    } else {
+        (320, 200, 1)
+    };
+
+    let sys = sys::SDLSys::new(sdl_context, width, height);
+    let video = video::Video::new(width, height);
+    let mut vm = vm::VirtualMachine::new(resource, video, sys, zoom);
     if !opt.no_bypass {
         vm.set_variable(0xbc, 0x10);
         vm.set_variable(0xc6, 0x80);

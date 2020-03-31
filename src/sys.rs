@@ -23,33 +23,35 @@ pub struct SDLSys {
     timestamp: time::Instant,
     event_pump: EventPump,
     player_input: PlayerInput,
+    width: usize,
+    height: usize,
 }
 
 impl SDLSys {
-    pub fn new(sdl_context: sdl2::Sdl) -> SDLSys {
+    pub fn new(sdl_context: sdl2::Sdl, width: usize, height: usize) -> SDLSys {
         let video_subsystem = sdl_context.video().unwrap();
 
         let window = video_subsystem
-            .window("Another world", 1024, 770)
+            .window("Another world", 1280, 800)
             .position_centered()
             .build()
             .unwrap();
 
-        let screen_width = video::WIDTH as u32;
-        let screen_height = video::HEIGHT as u32;
         let mut canvas = window.into_canvas().build().expect("Expected canvas");
         canvas
-            .set_logical_size(screen_width, screen_height)
+            .set_logical_size(width as u32, height as u32)
             .expect("Expected logical size");
         let event_pump = sdl_context.event_pump().unwrap();
         SDLSys {
             sdl_context,
-            surface: Surface::new(screen_width, screen_height, PixelFormatEnum::Index8).unwrap(),
+            surface: Surface::new(width as u32, height as u32, PixelFormatEnum::Index8).unwrap(),
             canvas,
             audio_device: None,
             timestamp: time::Instant::now(),
             event_pump,
             player_input: PlayerInput::new(),
+            width,
+            height
         }
     }
 
@@ -68,11 +70,13 @@ impl SDLSys {
     pub fn update_display(&mut self, page: &video::Page) {
         debug!("update_display()");
         let pitch = self.surface.pitch() as usize;
+        let width = self.width;
+        let height = self.height;
         self.surface.with_lock_mut(|p| {
-            for j in 0..video::HEIGHT {
+            for j in 0..height {
                 let p_offset = pitch * j;
-                let page_offset = j * video::WIDTH;
-                for i in 0..video::WIDTH {
+                let page_offset = j * width;
+                for i in 0..width {
                     p[p_offset + i] = page.data[page_offset + i];
                 }
             }
@@ -86,7 +90,7 @@ impl SDLSys {
             .copy(
                 &texture,
                 None,
-                Some(Rect::new(0, 0, video::WIDTH as u32, video::HEIGHT as u32))
+                Some(Rect::new(0, 0, width as u32, height as u32))
             )
             .unwrap();
         self.canvas.present();

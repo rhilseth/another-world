@@ -13,7 +13,7 @@ use crate::player::PlayerDirection;
 use crate::resource::Resource;
 use crate::sfxplayer::SfxPlayer;
 use crate::sys::SDLSys;
-use crate::video::{HEIGHT, Palette, Point, Video};
+use crate::video::{Palette, Point, Video};
 
 const NUM_VARIABLES: usize = 256;
 const NUM_THREADS: usize = 64;
@@ -75,10 +75,11 @@ pub struct VirtualMachine {
     sys: SDLSys,
     last_timestamp: u64,
     variable_receiver: Option<Receiver<i16>>,
+    zoom_factor: u16,
 }
 
 impl VirtualMachine {
-    pub fn new(resource: Resource, video: Video, mut sys: SDLSys) -> VirtualMachine {
+    pub fn new(resource: Resource, video: Video, mut sys: SDLSys, zoom_factor: u16) -> VirtualMachine {
         let mut variables = [0; NUM_VARIABLES];
         variables[0x54] = 0x81;
         variables[VM_VARIABLE_RANDOM_SEED] = random::<i16>();
@@ -100,6 +101,7 @@ impl VirtualMachine {
             sys,
             last_timestamp: 0,
             variable_receiver: None,
+            zoom_factor,
         }
     }
 
@@ -671,9 +673,14 @@ impl VirtualMachine {
         };
         let mut buffer = Buffer::with_offset(&self.resource.memory[segment..], offset);
         let color = 0xff;
-        let point = Point { x: x * 2, y: y * 2 };
-        self.video
-            .read_and_draw_polygon(&mut buffer, color, zoom, point);
+        let zoom_factor = self.zoom_factor as i16;
+        let point = Point { x: x * zoom_factor, y: y * zoom_factor };
+        self.video.read_and_draw_polygon(
+            &mut buffer,
+            color,
+            zoom * self.zoom_factor,
+            point
+        );
     }
 
     fn op_draw_poly_background(&mut self, val: u8) {
@@ -687,9 +694,9 @@ impl VirtualMachine {
 
         let mut x = self.fetch_byte() as i16;
         let mut y = self.fetch_byte() as i16;
-        let h = y - (HEIGHT - 1) as i16;
+        let h = y - (self.video.height - 1) as i16;
         if h > 0 {
-            y = HEIGHT as i16 - 1;
+            y = self.video.height as i16 - 1;
             x += h;
         }
         debug!(
@@ -699,9 +706,14 @@ impl VirtualMachine {
 
         let mut buffer =
             Buffer::with_offset(&self.resource.memory[self.resource.seg_cinematic..], offset);
-        let point = Point { x: x * 2, y: y * 2 };
-        self.video
-            .read_and_draw_polygon(&mut buffer, COLOR_BLACK, DEFAULT_ZOOM, point);
+        let zoom = self.zoom_factor as i16;
+        let point = Point { x: x * zoom, y: y * zoom };
+        self.video.read_and_draw_polygon(
+            &mut buffer,
+            COLOR_BLACK,
+            DEFAULT_ZOOM * self.zoom_factor,
+            point
+        );
     }
 
     fn stop_channel(&mut self, channel: u8) {
