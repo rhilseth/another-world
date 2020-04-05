@@ -202,7 +202,7 @@ impl Video {
         dst_slice.copy_from_slice(&buffer);
     }
 
-    pub fn draw_string(&mut self, color: u8, x: u16, y: u16, string_id: u16) {
+    pub fn draw_string(&mut self, color: u8, x: u16, y: u16, string_id: u16, scale: u16) {
         debug!("DrawString(0x{:04x}, {}, {}, {})", string_id, x, y, color);
         if let Some(entry) = STRINGS_TABLE_ENG.get(&string_id) {
             let x_origin = x;
@@ -214,7 +214,7 @@ impl Video {
                     x = x_origin;
                     continue;
                 }
-                self.draw_char(c, x, y, color, self.cur_page_ptr1);
+                self.draw_char(c, x, y, color, self.cur_page_ptr1, scale);
                 x += 1;
             }
         } else {
@@ -423,7 +423,8 @@ impl Video {
         x: u16,
         y: u16,
         color: u8,
-        page_off: usize
+        page_off: usize,
+        scale: u16,
     ) {
         if x <= 39 && y <= 192 {
             let offset = (character as u8 - ' ' as u8) as usize * 8;
@@ -432,17 +433,17 @@ impl Video {
 
             let x = x as usize;
             let y = y as usize;
-            let mut p = x * 8 + y * self.width;
+            let scale = scale as usize;
+            let mut p = x * 8 * scale + y * scale * self.width;
 
             let buffer = &mut self.pages[page_off].data;
 
-            for j in 0..8 {
-                let mut ch = font_char[j];
-                for i in 0..8 {
+            for j in 0..8 * scale {
+                for i in 0..8 * scale {
+                    let ch = font_char[j / scale] << (i / scale);
                     if ch & 0x80 > 0 {
                         buffer[p + i] = color;
                     }
-                    ch <<= 1;
                 }
                 p += self.width;
             }

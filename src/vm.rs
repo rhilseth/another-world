@@ -76,11 +76,11 @@ pub struct VirtualMachine {
     sys: SDLSys,
     last_timestamp: u64,
     variable_receiver: Option<Receiver<i16>>,
-    zoom_factor: u16,
+    scale: u16,
 }
 
 impl VirtualMachine {
-    pub fn new(resource: Resource, video: Video, mut sys: SDLSys, zoom_factor: u16) -> VirtualMachine {
+    pub fn new(resource: Resource, video: Video, mut sys: SDLSys, scale: u16) -> VirtualMachine {
         let mut variables = [0; NUM_VARIABLES];
         variables[0x54] = 0x81;
         variables[VM_VARIABLE_RANDOM_SEED] = random::<i16>();
@@ -102,7 +102,7 @@ impl VirtualMachine {
             sys,
             last_timestamp: 0,
             variable_receiver: None,
-            zoom_factor,
+            scale,
         }
     }
 
@@ -124,8 +124,8 @@ impl VirtualMachine {
                 "init_for_part copy_vid_ptr: {}",
                 video_page_data.len()
             );
-            if self.zoom_factor != 1 {
-                video_page_data = util::resize(&video_page_data, self.zoom_factor);
+            if self.scale != 1 {
+                video_page_data = util::resize(&video_page_data, self.scale);
             }
             self.video.copy_page_buffer(&video_page_data);
             self.resource.copy_vid_ptr = false;
@@ -533,7 +533,7 @@ impl VirtualMachine {
         let x = self.fetch_byte() as u16;
         let y = self.fetch_byte() as u16;
         let color = self.fetch_byte();
-        self.video.draw_string(color, x, y, string_id);
+        self.video.draw_string(color, x, y, string_id, self.scale);
     }
 
     fn op_sub(&mut self) {
@@ -603,8 +603,8 @@ impl VirtualMachine {
                         "update_memlist copy_vid_ptr: {}",
                         video_page_data.len()
                     );
-                    if self.zoom_factor != 1 {
-                        video_page_data = util::resize(&video_page_data, self.zoom_factor);
+                    if self.scale != 1 {
+                        video_page_data = util::resize(&video_page_data, self.scale);
                     }
                     self.video.copy_page_buffer(&video_page_data);
                     self.resource.copy_vid_ptr = false;
@@ -680,12 +680,12 @@ impl VirtualMachine {
         };
         let mut buffer = Buffer::with_offset(&self.resource.memory[segment..], offset);
         let color = 0xff;
-        let zoom_factor = self.zoom_factor as i16;
-        let point = Point { x: x * zoom_factor, y: y * zoom_factor };
+        let scale = self.scale as i16;
+        let point = Point { x: x * scale, y: y * scale };
         self.video.read_and_draw_polygon(
             &mut buffer,
             color,
-            zoom * self.zoom_factor,
+            zoom * self.scale,
             point
         );
     }
@@ -713,12 +713,12 @@ impl VirtualMachine {
 
         let mut buffer =
             Buffer::with_offset(&self.resource.memory[self.resource.seg_cinematic..], offset);
-        let zoom = self.zoom_factor as i16;
+        let zoom = self.scale as i16;
         let point = Point { x: x * zoom, y: y * zoom };
         self.video.read_and_draw_polygon(
             &mut buffer,
             COLOR_BLACK,
-            DEFAULT_ZOOM * self.zoom_factor,
+            DEFAULT_ZOOM * self.scale,
             point
         );
     }
