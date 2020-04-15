@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::io::prelude::*;
-use std::io::SeekFrom;
+use std::io::{Error, ErrorKind, SeekFrom};
 use std::path::{Path, PathBuf};
 
 use byteorder::{BigEndian, ByteOrder, ReadBytesExt};
@@ -111,10 +111,40 @@ impl Resource {
         }
     }
 
-    pub fn read_memlist(&mut self) -> std::io::Result<()> {
-        let path = self.asset_path.join("Memlist.bin");
-        let mut file = File::open(path)?;
+    fn find_memlist_offset<R: Read>(reader: &mut R) -> std::io::Result<u64> {
+        let mut count = 0;
+        for (offset, b) in reader.bytes().enumerate() {
+            if b? == 0xff {
+                count += 1;
+            } else {
+                count = 0;
+            }
+            if count == 20 {
+                return Ok(offset as u64 - 2939)
+            }
+        }
+        Err(
+            Error::new(ErrorKind::UnexpectedEof, "Did not find memlist before eof")
+        )
+    }
+
+    fn read_memlist_from_amiga_executable(&mut self) -> std::io::Result<()> {
+        let path = self.asset_path.join("another");
+        let mut file = File::open(&path)?;
+        let offset = Resource::find_memlist_offset(&mut file)?;
+        file.seek(SeekFrom::Start(offset))?;
         self.read_entries(&mut file);
+        Ok(())
+    }
+
+    pub fn read_memlist(&mut self) -> std::io::Result<()> {
+        if self.use_amiga_assets {
+            self.read_memlist_from_amiga_executable()?;
+        } else {
+            let path = self.asset_path.join("Memlist.bin");
+            let mut file = File::open(path)?;
+            self.read_entries(&mut file);
+        }
         Ok(())
     }
 
