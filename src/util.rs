@@ -1,4 +1,4 @@
-pub fn resize(buffer: &[u8], factor: u16) -> Vec<u8> {
+pub fn resize(buffer: &[u8], factor: u32) -> Vec<u8> {
     let factor = factor as usize;
     let width = 320 * factor;
     let height = 200 * factor;

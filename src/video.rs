@@ -49,15 +49,15 @@ pub struct Point {
 }
 
 struct Polygon {
-    bbw: u16,
-    bbh: u16,
+    bbw: u32,
+    bbh: u32,
     points: Vec<Point>,
 }
 
 impl Polygon {
-    pub fn read_vertices(buffer: &mut Buffer, zoom: u16) -> Polygon {
-        let bbw = buffer.fetch_byte() as u16 * zoom / 64;
-        let bbh = buffer.fetch_byte() as u16 * zoom / 64;
+    pub fn read_vertices(buffer: &mut Buffer, zoom: u32) -> Polygon {
+        let bbw = buffer.fetch_byte() as u32 * zoom / 64;
+        let bbh = buffer.fetch_byte() as u32 * zoom / 64;
         let num_points = buffer.fetch_byte() as usize;
         assert!((num_points & 1) == 0 && num_points < MAX_POINTS);
 
@@ -202,7 +202,7 @@ impl Video {
         dst_slice.copy_from_slice(&buffer);
     }
 
-    pub fn draw_string(&mut self, color: u8, x: u16, y: u16, string_id: u16, scale: u16) {
+    pub fn draw_string(&mut self, color: u8, x: u16, y: u16, string_id: u16, scale: u32) {
         debug!("DrawString(0x{:04x}, {}, {}, {})", string_id, x, y, color);
         if let Some(entry) = STRINGS_TABLE_ENG.get(&string_id) {
             let x_origin = x;
@@ -226,7 +226,7 @@ impl Video {
         &mut self,
         buffer: &mut Buffer,
         color: u8,
-        zoom: u16,
+        zoom: u32,
         point: Point,
     ) {
         let mut color = color;
@@ -249,7 +249,7 @@ impl Video {
         }
     }
 
-    fn read_and_draw_polygon_hierarchy(&mut self, buffer: &mut Buffer, zoom: u16, point: Point) {
+    fn read_and_draw_polygon_hierarchy(&mut self, buffer: &mut Buffer, zoom: u32, point: Point) {
         let mut pt = point;
         let zoom32 = zoom as i32;
         pt.x = pt.x.wrapping_sub(buffer.fetch_byte() as i32 * zoom32 / 64);
@@ -422,7 +422,7 @@ impl Video {
         y: u16,
         color: u8,
         page_off: usize,
-        scale: u16,
+        scale: u32,
     ) {
         if x <= 39 && y <= 192 {
             let offset = (character as u8 - ' ' as u8) as usize * 8;

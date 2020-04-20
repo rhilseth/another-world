@@ -21,7 +21,7 @@ const NUM_THREADS: usize = 64;
 const SET_INACTIVE_THREAD: usize = 0xfffe;
 const INACTIVE_THREAD: usize = 0xffff;
 const COLOR_BLACK: u8 = 0xff;
-const DEFAULT_ZOOM: u16 = 0x40;
+const DEFAULT_ZOOM: u32 = 0x40;
 const STACK_SIZE: usize = 0xff;
 
 const VM_VARIABLE_RANDOM_SEED: usize = 0x3c;
@@ -76,11 +76,11 @@ pub struct VirtualMachine {
     sys: SDLSys,
     last_timestamp: u64,
     variable_receiver: Option<Receiver<i16>>,
-    scale: u16,
+    scale: u32,
 }
 
 impl VirtualMachine {
-    pub fn new(resource: Resource, video: Video, mut sys: SDLSys, scale: u16) -> VirtualMachine {
+    pub fn new(resource: Resource, video: Video, mut sys: SDLSys, scale: u32) -> VirtualMachine {
         let mut variables = [0; NUM_VARIABLES];
         variables[0x54] = 0x81;
         variables[VM_VARIABLE_RANDOM_SEED] = random::<i16>();
@@ -651,7 +651,7 @@ impl VirtualMachine {
             }
         }
 
-        let mut zoom = self.fetch_byte() as u16;
+        let mut zoom = self.fetch_byte() as u32;
 
         if val & 2 == 0 {
             // bit 0000 0010
@@ -660,7 +660,7 @@ impl VirtualMachine {
                 self.script_ptr -= 1;
                 zoom = 0x40;
             } else {
-                zoom = self.variables[zoom as usize] as u16;
+                zoom = self.variables[zoom as usize] as u32;
             }
         } else {
             if val & 1 > 0 {
