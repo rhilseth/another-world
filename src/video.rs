@@ -44,8 +44,8 @@ impl Palette {
 
 #[derive(Debug)]
 pub struct Point {
-    pub x: i16,
-    pub y: i16,
+    pub x: i32,
+    pub y: i32,
 }
 
 struct Polygon {
@@ -64,8 +64,8 @@ impl Polygon {
         let zoom = zoom as i32;
         let mut points = Vec::new();
         for _ in 0..num_points {
-            let x = (buffer.fetch_byte() as i32 * zoom / 64) as i16;
-            let y = (buffer.fetch_byte() as i32 * zoom / 64) as i16;
+            let x = buffer.fetch_byte() as i32 * zoom / 64;
+            let y = buffer.fetch_byte() as i32 * zoom / 64;
             points.push(Point { x, y });
         }
         Polygon { bbw, bbh, points }
@@ -90,9 +90,9 @@ impl Page {
 }
 
 fn calc_step(p1: &Point, p2: &Point) -> (i32, u16) {
-    let dy = p2.y as i32 - p1.y as i32;
+    let dy = p2.y - p1.y;
     let mul = if dy == 0 { 0x4000 } else { 0x4000 / dy };
-    let step = (p2.x as i32 - p1.x as i32) * mul * 4;
+    let step = (p2.x - p1.x) * mul * 4;
     (step, dy as u16)
 }
 
@@ -252,18 +252,16 @@ impl Video {
     fn read_and_draw_polygon_hierarchy(&mut self, buffer: &mut Buffer, zoom: u16, point: Point) {
         let mut pt = point;
         let zoom32 = zoom as i32;
-        pt.x =
-            pt.x.wrapping_sub((buffer.fetch_byte() as i32 * zoom32 / 64) as i16);
-        pt.y =
-            pt.y.wrapping_sub((buffer.fetch_byte() as i32 * zoom32 / 64) as i16);
+        pt.x = pt.x.wrapping_sub(buffer.fetch_byte() as i32 * zoom32 / 64);
+        pt.y = pt.y.wrapping_sub(buffer.fetch_byte() as i32 * zoom32 / 64);
 
         let children = buffer.fetch_byte() as usize + 1;
         debug!("read_and_draw_polygon_hierarchy children={}", children);
         for _ in 0..children {
             let mut offset = buffer.fetch_word() as usize;
 
-            let x = (buffer.fetch_byte() as i32 * zoom32 / 64) as i16;
-            let y = (buffer.fetch_byte() as i32 * zoom32 / 64) as i16;
+            let x = buffer.fetch_byte() as i32 * zoom32 / 64;
+            let y = buffer.fetch_byte() as i32 * zoom32 / 64;
             let po = Point {
                 x: pt.x.wrapping_add(x),
                 y: pt.y.wrapping_add(y),
@@ -292,12 +290,12 @@ impl Video {
             self.draw_point(color, point);
             return;
         }
-        let width = self.width as i16;
-        let height = self.height as i16;
-        let mut x1 = point.x - polygon.bbw as i16 / 2;
-        let mut x2 = point.x + polygon.bbw as i16 / 2;
-        let y1 = point.y - polygon.bbh as i16 / 2;
-        let y2 = point.y + polygon.bbh as i16 / 2;
+        let width = self.width as i32;
+        let height = self.height as i32;
+        let mut x1 = point.x - polygon.bbw as i32 / 2;
+        let mut x2 = point.x + polygon.bbw as i32 / 2;
+        let y1 = point.y - polygon.bbh as i32 / 2;
+        let y2 = point.y + polygon.bbh as i32 / 2;
 
         if x1 >= width || x2 < 0 || y1 >= height || y2 < 0 {
             return;
@@ -313,8 +311,8 @@ impl Video {
         i = i + 1;
         j = j - 1;
 
-        let mut cpt1 = (x1 as u32) << 16;
-        let mut cpt2 = (x2 as u32) << 16;
+        let mut cpt1 = (x1 as u64) << 16;
+        let mut cpt2 = (x2 as u64) << 16;
 
         let mut num_points = polygon.num_points();
         loop {
@@ -328,17 +326,17 @@ impl Video {
             i += 1;
             j -= 1;
 
-            cpt1 = (cpt1 & 0xffff0000) | 0x7fff;
-            cpt2 = (cpt2 & 0xffff0000) | 0x8000;
+            cpt1 = (cpt1 & 0xffffffffffff0000) | 0x7fff;
+            cpt2 = (cpt2 & 0xffffffffffff0000) | 0x8000;
 
             if h == 0 {
-                cpt1 = (cpt1 as i64 + step1 as i64) as u32;
-                cpt2 = (cpt2 as i64 + step2 as i64) as u32;
+                cpt1 = (cpt1 as i64 + step1 as i64) as u64;
+                cpt2 = (cpt2 as i64 + step2 as i64) as u64;
             } else {
                 for _ in 0..h {
                     if hliney >= 0 {
-                        x1 = (cpt1 >> 16) as i16;
-                        x2 = (cpt2 >> 16) as i16;
+                        x1 = (cpt1 >> 16) as i32;
+                        x2 = (cpt2 >> 16) as i32;
                         if x1 < width && x2 >= 0 {
                             if x1 < 0 {
                                 x1 = 0;
@@ -353,8 +351,8 @@ impl Video {
                             }
                         }
                     }
-                    cpt1 = (cpt1 as i64 + step1 as i64) as u32;
-                    cpt2 = (cpt2 as i64 + step2 as i64) as u32;
+                    cpt1 = (cpt1 as i64 + step1 as i64) as u64;
+                    cpt2 = (cpt2 as i64 + step2 as i64) as u64;
                     hliney += 1;
                     if hliney >= height {
                         return;
@@ -364,11 +362,11 @@ impl Video {
         }
     }
 
-    fn draw_line_n(&mut self, x1: i16, x2: i16, color: u8, hliney: i16) {
+    fn draw_line_n(&mut self, x1: i32, x2: i32, color: u8, hliney: i32) {
         debug!("draw_line_n({}, {}, {})", x1, x2, color);
         let xmax = cmp::max(x1, x2);
         let xmin = cmp::min(x1, x2);
-        let mut offset = (hliney as i32 * self.width as i32 + xmin as i32) as usize;
+        let mut offset = (hliney * self.width as i32 + xmin) as usize;
 
         let mut w = (xmax - xmin + 1) as u16;
 
@@ -379,11 +377,11 @@ impl Video {
         }
     }
 
-    fn draw_line_p(&mut self, x1: i16, x2: i16, color: u8, hliney: i16) {
+    fn draw_line_p(&mut self, x1: i32, x2: i32, color: u8, hliney: i32) {
         debug!("draw_line_p({}, {}, {})", x1, x2, color);
         let xmax = cmp::max(x1, x2);
         let xmin = cmp::min(x1, x2);
-        let mut offset = (hliney as i32 * self.width as i32 + xmin as i32) as usize;
+        let mut offset = (hliney * self.width as i32 + xmin) as usize;
 
         let mut w = (xmax - xmin + 1) as u16;
         while w > 0 {
@@ -393,11 +391,11 @@ impl Video {
         }
     }
 
-    fn draw_line_blend(&mut self, x1: i16, x2: i16, color: u8, hliney: i16) {
+    fn draw_line_blend(&mut self, x1: i32, x2: i32, color: u8, hliney: i32) {
         debug!("draw_line_blend({}, {}, {})", x1, x2, color);
         let xmax = cmp::max(x1, x2);
         let xmin = cmp::min(x1, x2);
-        let mut offset = (hliney as i32 * self.width as i32 + xmin as i32) as usize;
+        let mut offset = (hliney * self.width as i32 + xmin) as usize;
 
         let mut w = (xmax - xmin + 1) as u16;
         while w > 0 {
@@ -410,8 +408,8 @@ impl Video {
 
     fn draw_point(&mut self, color: u8, point: Point) {
         debug!("draw_point({}, {:?})", color, point);
-        if point.x >= 0 && point.x < self.width as i16 && point.y >= 0 && point.y < self.height as i16 {
-            let offset = (point.y as i32 * self.width as i32 + point.x as i32) as usize;
+        if point.x >= 0 && point.x < self.width as i32 && point.y >= 0 && point.y < self.height as i32 {
+            let offset = (point.y * self.width as i32 + point.x) as usize;
 
             self.pages[self.cur_page_ptr1].data[offset] = color;
         }

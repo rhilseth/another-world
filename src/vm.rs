@@ -622,16 +622,16 @@ impl VirtualMachine {
 
     fn op_draw_poly_sprite(&mut self, val: u8) {
         let offset = (self.fetch_word() * 2) as usize;
-        let mut x = self.fetch_byte() as i16;
+        let mut x = self.fetch_byte() as i32;
         self.video_buffer_seg = VideoBufferSeg::Cinematic;
 
         if val & 0x20 == 0 {
             // bit 0010 0000
             if val & 0x10 == 0 {
                 // bit 0001 000
-                x = (x << 8) | self.fetch_byte() as i16;
+                x = (x << 8) | self.fetch_byte() as i32;
             } else {
-                x = self.variables[x as usize];
+                x = self.variables[x as usize] as i32;
             }
         } else {
             if val & 0x10 > 0 {
@@ -640,14 +640,14 @@ impl VirtualMachine {
             }
         }
 
-        let mut y = self.fetch_byte() as i16;
+        let mut y = self.fetch_byte() as i32;
         if val & 8 == 0 {
             // bit 0000 1000
             if val & 4 == 0 {
                 // bit 0000 0100
-                y = (y << 8) | self.fetch_byte() as i16;
+                y = (y << 8) | self.fetch_byte() as i32;
             } else {
-                y = self.variables[y as usize];
+                y = self.variables[y as usize] as i32;
             }
         }
 
@@ -680,7 +680,7 @@ impl VirtualMachine {
         };
         let mut buffer = Buffer::with_offset(&self.resource.memory[segment..], offset);
         let color = 0xff;
-        let scale = self.scale as i16;
+        let scale = self.scale as i32;
         let point = Point { x: x * scale, y: y * scale };
         self.video.read_and_draw_polygon(
             &mut buffer,
@@ -699,11 +699,11 @@ impl VirtualMachine {
         let offset: usize = (((msb << 8) | lsb) * 2) as usize;
         self.video_buffer_seg = VideoBufferSeg::Cinematic;
 
-        let mut x = self.fetch_byte() as i16;
-        let mut y = self.fetch_byte() as i16;
-        let h = y - (self.video.height - 1) as i16;
+        let mut x = self.fetch_byte() as i32;
+        let mut y = self.fetch_byte() as i32;
+        let h = y - (self.video.height - 1) as i32;
         if h > 0 {
-            y = self.video.height as i16 - 1;
+            y = self.video.height as i32 - 1;
             x += h;
         }
         debug!(
@@ -713,7 +713,7 @@ impl VirtualMachine {
 
         let mut buffer =
             Buffer::with_offset(&self.resource.memory[self.resource.seg_cinematic..], offset);
-        let zoom = self.scale as i16;
+        let zoom = self.scale as i32;
         let point = Point { x: x * zoom, y: y * zoom };
         self.video.read_and_draw_polygon(
             &mut buffer,
