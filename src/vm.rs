@@ -181,12 +181,11 @@ impl VirtualMachine {
             return false;
         }
 
-        if input.code {
-            if self.resource.current_part_id != parts::GAME_PART_LAST
-                && self.resource.current_part_id != parts::GAME_PART_FIRST
-            {
-                self.requested_next_part = Some(parts::GAME_PART_LAST);
-            }
+        if input.code
+            && self.resource.current_part_id != parts::GAME_PART_LAST
+            && self.resource.current_part_id != parts::GAME_PART_FIRST
+        {
+            self.requested_next_part = Some(parts::GAME_PART_LAST);
         }
 
         let mut lr = 0;
@@ -213,7 +212,7 @@ impl VirtualMachine {
         self.variables[VM_VARIABLE_HERO_POS_LEFT_RIGHT] = lr;
         self.variables[VM_VARIABLE_HERO_POS_MASK] = m;
 
-        self.variables[VM_VARIABLE_HERO_ACTION] = if input.button == true {
+        self.variables[VM_VARIABLE_HERO_ACTION] = if input.button {
             m |= 0x80;
             1
         } else {
@@ -547,14 +546,14 @@ impl VirtualMachine {
         let variable_id = self.fetch_byte() as usize;
         let value = self.fetch_word() as i16;
         debug!("and(0x{:02x}, {}", variable_id, value);
-        self.variables[variable_id] = self.variables[variable_id] & value;
+        self.variables[variable_id] &= value;
     }
 
     fn op_or(&mut self) {
         let variable_id = self.fetch_byte() as usize;
         let value = self.fetch_word() as i16;
         debug!("or(0x{:02x}, {}", variable_id, value);
-        self.variables[variable_id] = self.variables[variable_id] | value;
+        self.variables[variable_id] |= value;
     }
 
     fn op_shl(&mut self) {
@@ -591,24 +590,22 @@ impl VirtualMachine {
             self.player.stop();
             self.mixer.write().expect("Expected non-poisoned RwLock").stop_all();
             self.resource.invalidate_resource();
+        } else if resource_id >= parts::GAME_PART_FIRST {
+            debug!("Requesting new part {}", resource_id);
+            self.requested_next_part = Some(resource_id);
         } else {
-            if resource_id >= parts::GAME_PART_FIRST {
-                debug!("Requesting new part {}", resource_id);
-                self.requested_next_part = Some(resource_id);
-            } else {
-                self.resource.load_memory_entry(resource_id);
-                if self.resource.copy_vid_ptr {
-                    let mut video_page_data = self.resource.video_page_data();
-                    debug!(
-                        "update_memlist copy_vid_ptr: {}",
-                        video_page_data.len()
-                    );
-                    if self.scale != 1 {
-                        video_page_data = util::resize(&video_page_data, self.scale);
-                    }
-                    self.video.copy_page_buffer(&video_page_data);
-                    self.resource.copy_vid_ptr = false;
+            self.resource.load_memory_entry(resource_id);
+            if self.resource.copy_vid_ptr {
+                let mut video_page_data = self.resource.video_page_data();
+                debug!(
+                    "update_memlist copy_vid_ptr: {}",
+                    video_page_data.len()
+                );
+                if self.scale != 1 {
+                    video_page_data = util::resize(&video_page_data, self.scale);
                 }
+                self.video.copy_page_buffer(&video_page_data);
+                self.resource.copy_vid_ptr = false;
             }
         }
     }
@@ -633,11 +630,9 @@ impl VirtualMachine {
             } else {
                 x = self.variables[x as usize] as i32;
             }
-        } else {
-            if val & 0x10 > 0 {
-                // bit 0001 0000
-                x += 0x100;
-            }
+        } else if val & 0x10 > 0 {
+            // bit 0001 0000
+            x += 0x100;
         }
 
         let mut y = self.fetch_byte() as i32;
@@ -662,13 +657,11 @@ impl VirtualMachine {
             } else {
                 zoom = self.variables[zoom as usize] as u32;
             }
-        } else {
-            if val & 1 > 0 {
-                // bit 0000 0001
-                self.video_buffer_seg = VideoBufferSeg::Video2;
-                self.script_ptr -= 1;
-                zoom = 0x40;
-            }
+        } else if val & 1 > 0 {
+            // bit 0000 0001
+            self.video_buffer_seg = VideoBufferSeg::Video2;
+            self.script_ptr -= 1;
+            zoom = 0x40;
         }
         debug!(
             "draw_poly_sprite() offset=0x{:x}, x={}, y={}, zoom={}",
@@ -749,12 +742,10 @@ impl VirtualMachine {
         );
         if vol == 0 {
             self.stop_channel(channel);
-        } else {
-            if let Some(mixer_chunk) = self.resource.get_entry_mixer_chunk(resource_id) {
-                let frequence = mixer::FREQUENCE_TABLE[freq as usize];
-                let vol = cmp::min(vol, 0x3f);
-                self.play_channel(channel & 3, mixer_chunk, frequence, vol);
-            }
+        } else if let Some(mixer_chunk) = self.resource.get_entry_mixer_chunk(resource_id) {
+            let frequence = mixer::FREQUENCE_TABLE[freq as usize];
+            let vol = cmp::min(vol, 0x3f);
+            self.play_channel(channel & 3, mixer_chunk, frequence, vol);
         }
     }
 

@@ -235,8 +235,8 @@ impl Resource {
                 let mut p = [
                     self.memory[off + 8000 * 3],
                     self.memory[off + 8000 * 2],
-                    self.memory[off + 8000 * 1],
-                    self.memory[off + 8000 * 0],
+                    self.memory[off + 8000],
+                    self.memory[off],
                 ];
                 for _j in 0..8 {
                     let mut acc = 0;
@@ -327,8 +327,8 @@ impl Resource {
             panic!("Error loading instrument 0x{:x}", resource_id);
         }
         let mut data = self.memory[entry.buf_ptr..entry.buf_ptr + entry.size].to_vec();
-        for i in 8..12 {
-            data[i] = 0;
+        for item in data.iter_mut().take(12).skip(8) {
+            *item = 0;
         }
         Some(SfxInstrument::new(data, volume))
     }

@@ -166,7 +166,7 @@ impl Video {
 
         if src_page_id >= 0xfe || ((src_page_id & 0xbf) & 0x80) == 0 {
             if src_page_id < 0xfe {
-                src_page_id = src_page_id & 0xbf;
+                src_page_id &= 0xbf;
             }
             let src_page = self.get_page(src_page_id);
             let q = self.get_page_id(dst_page_id);
@@ -179,10 +179,10 @@ impl Video {
             if vscroll >= -(height - 1) && vscroll < height {
                 let mut h: isize = height;
                 if vscroll < 0 {
-                    h = h + vscroll;
+                    h += vscroll;
                     src_i += -vscroll * width;
                 } else {
-                    h = h - vscroll;
+                    h -= vscroll;
                     dst_i += vscroll * width;
                 }
                 assert!(src_i >= 0);
@@ -306,10 +306,10 @@ impl Video {
         let mut j = polygon.num_points() - 1;
 
         x2 = polygon.points[i].x + x1;
-        x1 = polygon.points[j].x + x1;
+        x1 += polygon.points[j].x;
 
-        i = i + 1;
-        j = j - 1;
+        i += 1;
+        j -= 1;
 
         let mut cpt1 = (x1 as u64) << 16;
         let mut cpt2 = (x2 as u64) << 16;
@@ -326,8 +326,8 @@ impl Video {
             i += 1;
             j -= 1;
 
-            cpt1 = (cpt1 & 0xffffffffffff0000) | 0x7fff;
-            cpt2 = (cpt2 & 0xffffffffffff0000) | 0x8000;
+            cpt1 = (cpt1 & 0xffff_ffff_ffff_0000) | 0x7fff;
+            cpt2 = (cpt2 & 0xffff_ffff_ffff_0000) | 0x8000;
 
             if h == 0 {
                 cpt1 = (cpt1 as i64 + step1 as i64) as u64;
@@ -425,7 +425,7 @@ impl Video {
         scale: u32,
     ) {
         if x <= 39 && y <= 192 {
-            let offset = (character as u8 - ' ' as u8) as usize * 8;
+            let offset = (character as u8 - b' ') as usize * 8;
 
             let font_char = &FONT[offset..offset + 8];
 

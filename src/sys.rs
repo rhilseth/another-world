@@ -76,9 +76,10 @@ impl SDLSys {
             for j in 0..height {
                 let p_offset = pitch * j;
                 let page_offset = j * width;
-                for i in 0..width {
-                    p[p_offset + i] = page.data[page_offset + i];
-                }
+                p[p_offset..(width + p_offset)]
+                    .clone_from_slice(
+                        &page.data[page_offset..(width + page_offset)]
+                    );
             }
         });
         let texture_creator = self.canvas.texture_creator();

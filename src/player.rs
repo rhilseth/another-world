@@ -2,10 +2,10 @@ use bitflags::bitflags;
 
 bitflags! {
     pub struct PlayerDirection: u8 {
-        const LEFT  = 0b00000001;
-        const RIGHT = 0b00000010;
-        const UP    = 0b00000100;
-        const DOWN  = 0b00001000;
+        const LEFT  = 0b0000_0001;
+        const RIGHT = 0b0000_0010;
+        const UP    = 0b0000_0100;
+        const DOWN  = 0b0000_1000;
     }
 }
 

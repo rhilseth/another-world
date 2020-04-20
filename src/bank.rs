@@ -102,7 +102,7 @@ impl<'a> Unpacker<'a> {
         let rcf: bool = (self.chk & 1) > 0;
         self.chk >>= 1;
         if cf {
-            self.chk |= 0x80000000;
+            self.chk |= 0x8000_0000;
         }
         rcf
     }
@@ -127,14 +127,12 @@ impl<'a> Unpacker<'a> {
                 let c = self.get_code(2);
                 if c == 3 {
                     self.dec_unk1(8, 8);
+                } else if c < 2 {
+                    self.size = c + 2;
+                    self.dec_unk2(c + 9);
                 } else {
-                    if c < 2 {
-                        self.size = c + 2;
-                        self.dec_unk2(c + 9);
-                    } else {
-                        self.size = self.get_code(8);
-                        self.dec_unk2(12);
-                    }
+                    self.size = self.get_code(8);
+                    self.dec_unk2(12);
                 }
             }
         }

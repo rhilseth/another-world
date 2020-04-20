@@ -128,14 +128,12 @@ impl AudioCallback for MixerAudio {
                         } else {
                             p1 + 1
                         }
+                    } else if p1 == channel.chunk.len - 1 {
+                        debug!("Stopping sample on channel {}", chan_num);
+                        ch.take();
+                        break;
                     } else {
-                        if p1 == channel.chunk.len - 1 {
-                            debug!("Stopping sample on channel {}", chan_num);
-                            ch.take();
-                            break;
-                        } else {
-                            p1 + 1
-                        }
+                        p1 + 1
                     };
                     assert!(p1 < channel.chunk.data.len());
                     assert!(p2 < channel.chunk.data.len());

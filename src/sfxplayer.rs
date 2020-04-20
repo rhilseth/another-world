@@ -168,7 +168,7 @@ impl SfxPlayer {
                     trace!("Playing music");
                     assert!(pat.note1 >= 0x37);
                     assert!(pat.note1 < 0x1000);
-                    let freq = (7159092 / (pat.note1 * 2) as u32) as u16;
+                    let freq = (7_159_092 / (pat.note1 * 2) as u32) as u16;
                     let volume = pat.sample_volume;
                     let chunk = MixerChunk::from_sfx_pattern(pat);
                     mixer_guard.play_channel(channel, chunk, freq, volume as u8);
