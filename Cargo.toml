@@ -20,5 +20,5 @@ timer = "0.1"
 
 [dependencies.sdl2]
 git = "https://github.com/Rust-SDL2/rust-sdl2.git"
-features = ["use_mac_framework"]
+features = ["use_mac_framework", "bundled"]
 

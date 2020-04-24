@@ -76,7 +76,7 @@ pub struct MemEntry {
 
 pub struct Resource {
     mem_list: Vec<MemEntry>,
-    pub memory: [u8; MEM_BLOCK_SIZE],
+    pub memory: Vec<u8>,
     pub current_part_id: u16,
     script_bak_ptr: usize,
     script_cur_ptr: usize,
@@ -95,7 +95,7 @@ impl Resource {
     pub fn new(asset_path: PathBuf, use_amiga_assets: bool) -> Resource {
         Resource {
             mem_list: Vec::new(),
-            memory: [0; MEM_BLOCK_SIZE],
+            memory: vec![0; MEM_BLOCK_SIZE],
             current_part_id: 0,
             script_bak_ptr: 0,
             script_cur_ptr: 0,
