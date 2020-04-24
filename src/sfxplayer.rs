@@ -1,5 +1,5 @@
+use std::sync::mpsc::{sync_channel, Receiver};
 use std::sync::{Arc, RwLock};
-use std::sync::mpsc::{Receiver, sync_channel};
 
 use chrono;
 use log::{debug, trace};
@@ -135,13 +135,16 @@ impl SfxPlayer {
         let (tx, rx) = sync_channel::<i16>(0);
         if let Some(sfx_module) = self.sfx_module.take() {
             let sfx_module = Arc::new(RwLock::new(sfx_module));
-            self.timer_guard.replace(
-                self.timer.schedule_repeating(chrono::Duration::milliseconds(self.delay), move || {
-                    if let Some(variable) = SfxPlayer::handle_events(sfx_module.clone(), mixer.clone()) {
+            self.timer_guard.replace(self.timer.schedule_repeating(
+                chrono::Duration::milliseconds(self.delay),
+                move || {
+                    if let Some(variable) =
+                        SfxPlayer::handle_events(sfx_module.clone(), mixer.clone())
+                    {
                         tx.send(variable).unwrap();
                     }
-                })
-            );
+                },
+            ));
         }
         rx
     }
@@ -173,13 +176,16 @@ impl SfxPlayer {
                     let chunk = MixerChunk::from_sfx_pattern(pat);
                     mixer_guard.play_channel(channel, chunk, freq, volume as u8);
                 }
-                None => { }
+                None => {}
             }
         }
 
         let order = sfx_module.order_table[sfx_module.cur_order as usize] as usize;
         sfx_module.cur_pos += 4 * 4;
-        debug!("handle_events() order = 0x{:x} cur_pos = 0x{:x}", order, sfx_module.cur_pos);
+        debug!(
+            "handle_events() order = 0x{:x} cur_pos = 0x{:x}",
+            order, sfx_module.cur_pos
+        );
         if sfx_module.cur_pos >= 1024 {
             sfx_module.cur_pos = 0;
             let order = sfx_module.cur_order + 1;
@@ -194,7 +200,7 @@ impl SfxPlayer {
     fn handle_pattern(
         sfx_module: &SfxModule,
         channel: u8,
-        mut pattern_data: Buffer
+        mut pattern_data: Buffer,
     ) -> Option<PatternResult> {
         let note1 = pattern_data.fetch_word();
         let note2 = pattern_data.fetch_word();
@@ -207,14 +213,13 @@ impl SfxPlayer {
             let sample_index = ((note2 & 0xf000) >> 12) as usize;
             if sample_index != 0 {
                 trace!("Have sample index");
-                let sample = sfx_module.samples[sample_index - 1].as_ref()
+                let sample = sfx_module.samples[sample_index - 1]
+                    .as_ref()
                     .expect("Expected some sample");
-                return Some(
-                    PatternResult::Pattern(
-                        channel,
-                        SfxPattern::from_notes(note1, note2, &sample)
-                    )
-                );
+                return Some(PatternResult::Pattern(
+                    channel,
+                    SfxPattern::from_notes(note1, note2, &sample),
+                ));
             }
         } else {
             return Some(PatternResult::MarkVariable(note2));

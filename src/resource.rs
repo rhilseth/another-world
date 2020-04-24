@@ -120,12 +120,13 @@ impl Resource {
                 count = 0;
             }
             if count == 20 {
-                return Ok(offset as u64 - 2939)
+                return Ok(offset as u64 - 2939);
             }
         }
-        Err(
-            Error::new(ErrorKind::UnexpectedEof, "Did not find memlist before eof")
-        )
+        Err(Error::new(
+            ErrorKind::UnexpectedEof,
+            "Did not find memlist before eof",
+        ))
     }
 
     fn read_memlist_from_amiga_executable(&mut self) -> std::io::Result<()> {
@@ -271,12 +272,7 @@ impl Resource {
         Some(MixerChunk::new(&data[0..data_len], len, loop_len))
     }
 
-    pub fn load_sfx_module(
-        &self,
-        resource_id: u16,
-        delay: &mut u16,
-        pos: u8
-    ) -> Option<SfxModule> {
+    pub fn load_sfx_module(&self, resource_id: u16, delay: &mut u16, pos: u8) -> Option<SfxModule> {
         debug!("load_sfx_module(0x{:x}, {}, {}", resource_id, delay, pos);
         let resource_id = resource_id as usize;
         let entry = &self.mem_list[resource_id];
@@ -305,13 +301,7 @@ impl Resource {
             samples.push(self.prepare_instrument(&buf));
         }
 
-        let module = SfxModule::new(
-            data.into(),
-            cur_order,
-            num_order,
-            order_table,
-            samples,
-        );
+        let module = SfxModule::new(data.into(), cur_order, num_order, order_table, samples);
         Some(module)
     }
 
@@ -333,7 +323,11 @@ impl Resource {
         Some(SfxInstrument::new(data, volume))
     }
 
-    fn read_bank(asset_path: &Path, mem_entry: &MemEntry, amiga_path: bool) -> std::io::Result<Bank> {
+    fn read_bank(
+        asset_path: &Path,
+        mem_entry: &MemEntry,
+        amiga_path: bool,
+    ) -> std::io::Result<Bank> {
         let file_name = if amiga_path {
             asset_path.join(format!("bank{:02X}", mem_entry.bank_id))
         } else {

@@ -20,7 +20,10 @@ mod video;
 mod vm;
 
 #[derive(Debug, StructOpt)]
-#[structopt(name = "Another World", about = "A virtual machine for running Another World")]
+#[structopt(
+    name = "Another World",
+    about = "A virtual machine for running Another World"
+)]
 struct Opt {
     /// Set path of game assets
     #[structopt(parse(from_os_str), long, default_value = "data", name = "PATH")]
@@ -60,11 +63,7 @@ fn main() -> std::io::Result<()> {
         vm.set_variable(0xbc, 0x10);
         vm.set_variable(0xc6, 0x80);
         vm.set_variable(0xdc, 33);
-        let value = if opt.amiga {
-            6000
-        } else {
-            4000
-        };
+        let value = if opt.amiga { 6000 } else { 4000 };
         vm.set_variable(0xf2, value);
     }
 

@@ -1,8 +1,8 @@
 use log::{debug, trace, warn};
 use rand::random;
 use std::cmp;
-use std::sync::{Arc, RwLock};
 use std::sync::mpsc::Receiver;
+use std::sync::{Arc, RwLock};
 
 use crate::buffer::Buffer;
 use crate::mixer;
@@ -113,17 +113,17 @@ impl VirtualMachine {
     pub fn init_for_part(&mut self, part_id: u16) {
         debug!("init_for_part: {}", part_id);
         self.player.stop();
-        self.mixer.write().expect("Expected non-poisoned RwLock").stop_all();
+        self.mixer
+            .write()
+            .expect("Expected non-poisoned RwLock")
+            .stop_all();
 
         self.variables[0xe4] = 0x14;
 
         self.resource.setup_part(part_id);
         if self.resource.copy_vid_ptr {
             let mut video_page_data = self.resource.video_page_data();
-            debug!(
-                "init_for_part copy_vid_ptr: {}",
-                video_page_data.len()
-            );
+            debug!("init_for_part copy_vid_ptr: {}", video_page_data.len());
             if self.scale != 1 {
                 video_page_data = util::resize(&video_page_data, self.scale);
             }
@@ -408,7 +408,10 @@ impl VirtualMachine {
         } else {
             self.fetch_byte() as i16
         };
-        debug!("op_cond_jmp({}, 0x{:02x}, 0x{:02x}) var=0x{:02x}", opcode, b, a, var);
+        debug!(
+            "op_cond_jmp({}, 0x{:02x}, 0x{:02x}) var=0x{:02x}",
+            opcode, b, a, var
+        );
 
         let expr = match opcode & 7 {
             0 => b == a,
@@ -588,7 +591,10 @@ impl VirtualMachine {
 
         if resource_id == 0 {
             self.player.stop();
-            self.mixer.write().expect("Expected non-poisoned RwLock").stop_all();
+            self.mixer
+                .write()
+                .expect("Expected non-poisoned RwLock")
+                .stop_all();
             self.resource.invalidate_resource();
         } else if resource_id >= parts::GAME_PART_FIRST {
             debug!("Requesting new part {}", resource_id);
@@ -597,10 +603,7 @@ impl VirtualMachine {
             self.resource.load_memory_entry(resource_id);
             if self.resource.copy_vid_ptr {
                 let mut video_page_data = self.resource.video_page_data();
-                debug!(
-                    "update_memlist copy_vid_ptr: {}",
-                    video_page_data.len()
-                );
+                debug!("update_memlist copy_vid_ptr: {}", video_page_data.len());
                 if self.scale != 1 {
                     video_page_data = util::resize(&video_page_data, self.scale);
                 }
@@ -674,13 +677,12 @@ impl VirtualMachine {
         let mut buffer = Buffer::with_offset(&self.resource.memory[segment..], offset);
         let color = 0xff;
         let scale = self.scale as i32;
-        let point = Point { x: x * scale, y: y * scale };
-        self.video.read_and_draw_polygon(
-            &mut buffer,
-            color,
-            zoom * self.scale,
-            point
-        );
+        let point = Point {
+            x: x * scale,
+            y: y * scale,
+        };
+        self.video
+            .read_and_draw_polygon(&mut buffer, color, zoom * self.scale, point);
     }
 
     fn op_draw_poly_background(&mut self, val: u8) {
@@ -707,30 +709,25 @@ impl VirtualMachine {
         let mut buffer =
             Buffer::with_offset(&self.resource.memory[self.resource.seg_cinematic..], offset);
         let zoom = self.scale as i32;
-        let point = Point { x: x * zoom, y: y * zoom };
+        let point = Point {
+            x: x * zoom,
+            y: y * zoom,
+        };
         self.video.read_and_draw_polygon(
             &mut buffer,
             COLOR_BLACK,
             DEFAULT_ZOOM * self.scale,
-            point
+            point,
         );
     }
 
     fn stop_channel(&mut self, channel: u8) {
-        let mut write_guard = self.mixer.write()
-            .expect("Expected non-poisoned RwLock");
+        let mut write_guard = self.mixer.write().expect("Expected non-poisoned RwLock");
         write_guard.stop_channel(channel);
     }
 
-    fn play_channel(
-        &mut self,
-        channel: u8,
-        mixer_chunk: MixerChunk,
-        frequence: u16,
-        vol: u8
-    ) {
-        let mut write_guard = self.mixer.write()
-            .expect("Expected non-poisoned RwLock");
+    fn play_channel(&mut self, channel: u8, mixer_chunk: MixerChunk, frequence: u16, vol: u8) {
+        let mut write_guard = self.mixer.write().expect("Expected non-poisoned RwLock");
         let vol = cmp::min(vol, 0x3f);
         write_guard.play_channel(channel & 3, mixer_chunk, frequence, vol);
     }
@@ -750,18 +747,18 @@ impl VirtualMachine {
     }
 
     fn play_music_resource(&mut self, resource_id: u16, delay: u16, pos: u8) {
-        debug!("play_music_resource(0x{:x}, {}, {})", resource_id, delay, pos);
+        debug!(
+            "play_music_resource(0x{:x}, {}, {})",
+            resource_id, delay, pos
+        );
         if resource_id != 0 {
             let mut delay = delay;
-            if let Some(sfx_module) = self.resource.load_sfx_module(
-                resource_id,
-                &mut delay,
-                pos
-            ) {
+            if let Some(sfx_module) = self.resource.load_sfx_module(resource_id, &mut delay, pos) {
                 self.player.set_sfx_module(sfx_module);
                 self.player.set_events_delay(delay);
 
-                self.variable_receiver.replace(self.player.start(MixerAudio(self.mixer.clone())));
+                self.variable_receiver
+                    .replace(self.player.start(MixerAudio(self.mixer.clone())));
             }
         } else if delay != 0 {
             self.player.set_events_delay(delay);
