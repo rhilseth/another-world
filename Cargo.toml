@@ -3,7 +3,6 @@ name = "anotherworld"
 version = "0.1.0"
 authors = ["Raymond Hilseth <rhilseth@gmail.com>"]
 edition = "2018"
-build = "build.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -20,5 +19,5 @@ timer = "0.1"
 
 [dependencies.sdl2]
 git = "https://github.com/Rust-SDL2/rust-sdl2.git"
-features = ["use_mac_framework", "bundled"]
+features = ["bundled"]
 
