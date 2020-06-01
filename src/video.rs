@@ -408,7 +408,11 @@ impl Video {
 
     fn draw_point(&mut self, color: u8, point: Point) {
         debug!("draw_point({}, {:?})", color, point);
-        if point.x >= 0 && point.x < self.width as i32 && point.y >= 0 && point.y < self.height as i32 {
+        if point.x >= 0
+            && point.x < self.width as i32
+            && point.y >= 0
+            && point.y < self.height as i32
+        {
             let offset = (point.y * self.width as i32 + point.x) as usize;
 
             self.pages[self.cur_page_ptr1].data[offset] = color;

@@ -22,7 +22,10 @@ mod vm;
 use resource::AssetPlatform;
 
 #[derive(Debug, StructOpt)]
-#[structopt(name = "Another World", about = "A virtual machine for running Another World")]
+#[structopt(
+    name = "Another World",
+    about = "A virtual machine for running Another World"
+)]
 struct Opt {
     /// Set path of game assets
     #[structopt(parse(from_os_str), long, default_value = "data", name = "PATH")]
