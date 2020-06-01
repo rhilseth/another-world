@@ -409,11 +409,6 @@ impl Resource {
             .filter(|e| e.state == MemEntryState::LoadMe)
             .collect();
 
-        // Sort by rank_num in descending order
-        // TODO: entries with a higher index should come before lower index entries
-        to_load.sort_by(|a, b| a.rank_num.cmp(&b.rank_num));
-        to_load.reverse();
-
         for entry in to_load {
             let load_destination = match entry.entry_type {
                 EntryType::PolyAnim => self.vid_cur_ptr,
