@@ -207,14 +207,15 @@ impl SfxPlayer {
             let sample_index = ((note2 & 0xf000) >> 12) as usize;
             if sample_index != 0 {
                 trace!("Have sample index");
-                let sample = sfx_module.samples[sample_index - 1].as_ref()
-                    .expect("Expected some sample");
-                return Some(
-                    PatternResult::Pattern(
-                        channel,
-                        SfxPattern::from_notes(note1, note2, &sample)
-                    )
-                );
+                if let Some(sample) = sfx_module.samples[sample_index - 1].as_ref() {
+                    trace!("Sample len: {}", sample.data.len());
+                    return Some(
+                        PatternResult::Pattern(
+                            channel,
+                            SfxPattern::from_notes(note1, note2, &sample)
+                        )
+                    );
+                }
             }
         } else {
             return Some(PatternResult::MarkVariable(note2));

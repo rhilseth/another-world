@@ -4,7 +4,7 @@ use std::io::{Error, ErrorKind, SeekFrom};
 use std::path::{Path, PathBuf};
 
 use byteorder::{BigEndian, ByteOrder, ReadBytesExt};
-use log::{debug, warn};
+use log::{debug, info, warn};
 
 use crate::bank::Bank;
 use crate::buffer::Buffer;
@@ -13,6 +13,13 @@ use crate::parts;
 use crate::sfxplayer::{SfxInstrument, SfxModule};
 
 const MEM_BLOCK_SIZE: usize = 600 * 1024;
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum AssetPlatform {
+    PC,
+    Amiga,
+    AtariST,
+}
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum MemEntryState {
@@ -88,11 +95,11 @@ pub struct Resource {
     pub seg_video2: usize,
     pub copy_vid_ptr: bool,
     asset_path: PathBuf,
-    use_amiga_assets: bool,
+    pub asset_platform: AssetPlatform,
 }
 
 impl Resource {
-    pub fn new(asset_path: PathBuf, use_amiga_assets: bool) -> Resource {
+    pub fn new(asset_path: PathBuf, asset_platform: AssetPlatform) -> Resource {
         Resource {
             mem_list: Vec::new(),
             memory: vec![0; MEM_BLOCK_SIZE],
@@ -107,8 +114,22 @@ impl Resource {
             seg_video2: 0,
             copy_vid_ptr: false,
             asset_path,
-            use_amiga_assets,
+            asset_platform,
         }
+    }
+
+    pub fn detect_platform(asset_path: PathBuf) -> Resource {
+        let asset_platform = if asset_path.join("another").exists() {
+            info!("Detected Amiga binary");
+            AssetPlatform::Amiga
+        } else if asset_path.join("START.PRG").exists() {
+            info!("Detected Atari ST binary");
+            AssetPlatform::AtariST
+        } else {
+            info!("Assuming PC / Memlist.bin version");
+            AssetPlatform::PC
+        };
+        Resource::new(asset_path, asset_platform)
     }
 
     fn find_memlist_offset<R: Read>(reader: &mut R) -> std::io::Result<u64> {
@@ -128,8 +149,8 @@ impl Resource {
         )
     }
 
-    fn read_memlist_from_amiga_executable(&mut self) -> std::io::Result<()> {
-        let path = self.asset_path.join("another");
+    fn read_memlist_from_executable(&mut self, executable_name: &str) -> std::io::Result<()> {
+        let path = self.asset_path.join(executable_name);
         let mut file = File::open(&path)?;
         let offset = Resource::find_memlist_offset(&mut file)?;
         file.seek(SeekFrom::Start(offset))?;
@@ -138,12 +159,18 @@ impl Resource {
     }
 
     pub fn read_memlist(&mut self) -> std::io::Result<()> {
-        if self.use_amiga_assets {
-            self.read_memlist_from_amiga_executable()?;
-        } else {
-            let path = self.asset_path.join("Memlist.bin");
-            let mut file = File::open(path)?;
-            self.read_entries(&mut file);
+        match self.asset_platform {
+            AssetPlatform::PC => {
+                let path = self.asset_path.join("Memlist.bin");
+                let mut file = File::open(path)?;
+                self.read_entries(&mut file);
+            }
+            AssetPlatform::Amiga => {
+                self.read_memlist_from_executable("another")?;
+            }
+            AssetPlatform::AtariST => {
+                self.read_memlist_from_executable("START.PRG")?;
+            }
         }
         Ok(())
     }
@@ -230,24 +257,41 @@ impl Resource {
         let mut buf = Vec::new();
 
         let mut off = self.vid_cur_ptr;
+        let mut next_add = 1;
         for _h in 0..200 {
             for _w in 0..40 {
-                let mut p = [
-                    self.memory[off + 8000 * 3],
-                    self.memory[off + 8000 * 2],
-                    self.memory[off + 8000],
-                    self.memory[off],
-                ];
+                let mut p = match self.asset_platform {
+                    AssetPlatform::AtariST => [
+                        self.memory[off + 6],
+                        self.memory[off + 4],
+                        self.memory[off + 2],
+                        self.memory[off],
+                    ],
+                    AssetPlatform::Amiga | AssetPlatform::PC => [
+                        self.memory[off + 8000 * 3],
+                        self.memory[off + 8000 * 2],
+                        self.memory[off + 8000],
+                        self.memory[off],
+                    ]
+                };
                 for _j in 0..8 {
                     let mut acc = 0;
                     for i in 0..4 {
                         acc <<= 1;
-                        acc |= if (p[i & 3] & 0x80) > 0 { 1 } else { 0 };
-                        p[i & 3] <<= 1;
+                        acc |= if (p[i] & 0x80) > 0 { 1 } else { 0 };
+                        p[i] <<= 1;
                     }
                     buf.push(acc);
                 }
-                off += 1;
+                off += next_add;
+                if next_add == 1 {
+                    next_add = match self.asset_platform {
+                        AssetPlatform::AtariST => 7,
+                        _ => 1,
+                    };
+                } else {
+                    next_add = 1;
+                }
             }
         }
         buf
@@ -327,17 +371,26 @@ impl Resource {
             panic!("Error loading instrument 0x{:x}", resource_id);
         }
         let mut data = self.memory[entry.buf_ptr..entry.buf_ptr + entry.size].to_vec();
+        if data.len() == 0 {
+            return None;
+        }
         for item in data.iter_mut().take(12).skip(8) {
             *item = 0;
         }
         Some(SfxInstrument::new(data, volume))
     }
 
-    fn read_bank(asset_path: &Path, mem_entry: &MemEntry, amiga_path: bool) -> std::io::Result<Bank> {
-        let file_name = if amiga_path {
-            asset_path.join(format!("bank{:02X}", mem_entry.bank_id))
-        } else {
-            asset_path.join(format!("Bank{:02x}", mem_entry.bank_id))
+    fn read_bank(asset_path: &Path, mem_entry: &MemEntry, asset_platform: &AssetPlatform) -> std::io::Result<Bank> {
+        let file_name = match asset_platform {
+            AssetPlatform::PC => {
+                asset_path.join(format!("Bank{:02x}", mem_entry.bank_id))
+            }
+            AssetPlatform::Amiga => {
+                asset_path.join(format!("bank{:02X}", mem_entry.bank_id))
+            }
+            AssetPlatform::AtariST => {
+                asset_path.join(format!("BANK{:02X}", mem_entry.bank_id))
+            }
         };
         debug!("Reading bank: {}", file_name.to_string_lossy());
         let mut file = File::open(file_name)?;
@@ -393,7 +446,7 @@ impl Resource {
                 continue;
             }
 
-            let bank = Resource::read_bank(&self.asset_path, &entry, self.use_amiga_assets)
+            let bank = Resource::read_bank(&self.asset_path, &entry, &self.asset_platform)
                 .expect("Could not read bank");
             debug!("read_bank() rank_num: {} packed_size: 0x{:x} size: 0x{:x} type={:?} pos={:x} bank_id={:x}", entry.rank_num, entry.packed_size, entry.size, entry.entry_type, entry.bank_offset, entry.bank_id);
 

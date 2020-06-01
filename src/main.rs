@@ -19,15 +19,14 @@ mod util;
 mod video;
 mod vm;
 
+use resource::AssetPlatform;
+
 #[derive(Debug, StructOpt)]
 #[structopt(name = "Another World", about = "A virtual machine for running Another World")]
 struct Opt {
     /// Set path of game assets
     #[structopt(parse(from_os_str), long, default_value = "data", name = "PATH")]
     asset_path: PathBuf,
-    /// Run with Amiga assets
-    #[structopt(long)]
-    amiga: bool,
     /// Start with game part
     #[structopt(long, default_value = "2")]
     game_part: u8,
@@ -42,7 +41,8 @@ struct Opt {
 fn main() -> std::io::Result<()> {
     let opt = Opt::from_args();
     pretty_env_logger::init();
-    let mut resource = resource::Resource::new(opt.asset_path, opt.amiga);
+    let mut resource = resource::Resource::detect_platform(opt.asset_path);
+    let asset_platform = resource.asset_platform;
     resource.read_memlist()?;
 
     let sdl_context = sdl2::init().unwrap();
@@ -60,10 +60,9 @@ fn main() -> std::io::Result<()> {
         vm.set_variable(0xbc, 0x10);
         vm.set_variable(0xc6, 0x80);
         vm.set_variable(0xdc, 33);
-        let value = if opt.amiga {
-            6000
-        } else {
-            4000
+        let value = match asset_platform {
+            AssetPlatform::Amiga | AssetPlatform::AtariST => 6000,
+            AssetPlatform::PC => 4000,
         };
         vm.set_variable(0xf2, value);
     }
