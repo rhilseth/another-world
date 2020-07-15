@@ -403,7 +403,7 @@ impl Resource {
     }
 
     fn load_marked_as_needed(&mut self) {
-        let mut to_load: Vec<&mut MemEntry> = self
+        let to_load: Vec<&mut MemEntry> = self
             .mem_list
             .iter_mut()
             .filter(|e| e.state == MemEntryState::LoadMe)
