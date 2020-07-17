@@ -3,23 +3,12 @@ use std::path::PathBuf;
 use pretty_env_logger;
 use structopt::StructOpt;
 
-mod bank;
-mod buffer;
-mod engine;
-mod font;
-mod mixer;
-mod opcode;
-mod parts;
-mod player;
-mod resource;
-mod sfxplayer;
-mod strings;
-mod sys;
-mod util;
-mod video;
-mod vm;
-
-use resource::AssetPlatform;
+use anotherworld::engine;
+use anotherworld::resource;
+use anotherworld::resource::AssetPlatform;
+use anotherworld::sys;
+use anotherworld::video;
+use anotherworld::vm;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
