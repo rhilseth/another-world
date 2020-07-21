@@ -140,7 +140,9 @@ impl SDLSys {
                     Keycode::Right => self.player_input.direction |= PlayerDirection::RIGHT,
                     Keycode::Up => self.player_input.direction |= PlayerDirection::UP,
                     Keycode::Down => self.player_input.direction |= PlayerDirection::DOWN,
-                    Keycode::LShift | Keycode::Space | Keycode::Return => self.player_input.button = true,
+                    Keycode::LShift | Keycode::Space | Keycode::Return => {
+                        self.player_input.button = true
+                    }
                     Keycode::Backspace => last_char = '\x08',
                     Keycode::A => {
                         self.player_input.direction |= PlayerDirection::LEFT;
@@ -186,11 +188,19 @@ impl SDLSys {
                     _ => {}
                 },
                 Event::KeyUp { keycode, .. } => match keycode.unwrap() {
-                    Keycode::Left | Keycode::A => self.player_input.direction &= !PlayerDirection::LEFT,
-                    Keycode::Right | Keycode::D => self.player_input.direction &= !PlayerDirection::RIGHT,
+                    Keycode::Left | Keycode::A => {
+                        self.player_input.direction &= !PlayerDirection::LEFT
+                    }
+                    Keycode::Right | Keycode::D => {
+                        self.player_input.direction &= !PlayerDirection::RIGHT
+                    }
                     Keycode::Up | Keycode::W => self.player_input.direction &= !PlayerDirection::UP,
-                    Keycode::Down | Keycode::S => self.player_input.direction &= !PlayerDirection::DOWN,
-                    Keycode::LShift | Keycode::Space | Keycode::Return => self.player_input.button = false,
+                    Keycode::Down | Keycode::S => {
+                        self.player_input.direction &= !PlayerDirection::DOWN
+                    }
+                    Keycode::LShift | Keycode::Space | Keycode::Return => {
+                        self.player_input.button = false
+                    }
                     _ => {}
                 },
                 _ => {}
