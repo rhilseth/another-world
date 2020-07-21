@@ -34,6 +34,7 @@ impl SDLSys {
         let window = video_subsystem
             .window("Another world", 1280, 800)
             .position_centered()
+            .resizable()
             .build()
             .unwrap();
 
