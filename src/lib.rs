@@ -5,7 +5,6 @@ pub mod sys;
 pub mod video;
 pub mod vm;
 
-mod buffer;
 mod font;
 mod mixer;
 mod opcode;

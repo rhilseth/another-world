@@ -1,13 +1,12 @@
 use std::fs::File;
 use std::io::prelude::*;
-use std::io::{Error, ErrorKind, SeekFrom};
+use std::io::{Cursor, Error, ErrorKind, SeekFrom};
 use std::path::{Path, PathBuf};
 
 use byteorder::{BigEndian, ByteOrder, ReadBytesExt};
 use log::{debug, info, warn};
 
 use crate::bank::Bank;
-use crate::buffer::Buffer;
 use crate::mixer::MixerChunk;
 use crate::parts;
 use crate::sfxplayer::{SfxInstrument, SfxModule};
@@ -350,12 +349,12 @@ impl Resource {
     }
 
     fn prepare_instrument(&self, buf: &[u8]) -> Option<SfxInstrument> {
-        let mut buffer = Buffer::new(&buf);
-        let resource_id = buffer.fetch_word();
+        let mut buffer = Cursor::new(&buf);
+        let resource_id = buffer.read_u16::<BigEndian>().unwrap();
         if resource_id == 0 {
             return None;
         }
-        let volume = buffer.fetch_word();
+        let volume = buffer.read_u16::<BigEndian>().unwrap();
         let entry = &self.mem_list[resource_id as usize];
         if entry.state != MemEntryState::Loaded || entry.entry_type != EntryType::Sound {
             panic!("Error loading instrument 0x{:x}", resource_id);
@@ -469,9 +468,5 @@ impl Resource {
             }
             self.mem_list.push(entry);
         }
-        //for res in self.mem_list.iter() {
-        //    println!("{:?}", res);
-        //}
-        //println!("Len: {}", self.mem_list.len());
     }
 }

@@ -1,11 +1,12 @@
+use std::io::Cursor;
 use std::sync::mpsc::{sync_channel, Receiver};
 use std::sync::{Arc, RwLock};
 
+use byteorder::{BigEndian, ReadBytesExt};
 use chrono;
 use log::{debug, trace};
 use timer::{Guard, Timer};
 
-use crate::buffer::Buffer;
 use crate::mixer::{MixerAudio, MixerChunk};
 
 pub struct SfxInstrument {
@@ -65,9 +66,9 @@ pub struct SfxPattern {
 
 impl SfxPattern {
     fn from_notes(note1: u16, note2: u16, sample: &SfxInstrument) -> SfxPattern {
-        let mut buffer = Buffer::new(&sample.data);
-        let sample_len = (buffer.fetch_word() * 2) as usize;
-        let loop_len = (buffer.fetch_word() * 2) as usize;
+        let mut buffer = Cursor::new(&sample.data);
+        let sample_len = (buffer.read_u16::<BigEndian>().unwrap() * 2) as usize;
+        let loop_len = (buffer.read_u16::<BigEndian>().unwrap() * 2) as usize;
         let (loop_pos, loop_len) = if loop_len != 0 {
             (sample_len, loop_len)
         } else {
@@ -162,7 +163,7 @@ impl SfxPlayer {
         for ch in 0..4 {
             let start = sfx_module.cur_pos + order * 1024 + ch * 4;
             trace!("Start: {}", start);
-            let pattern_data = Buffer::new(&sfx_module.data[start..start + 4]);
+            let pattern_data = Cursor::new(&sfx_module.data[start..start + 4]);
             let result = SfxPlayer::handle_pattern(&sfx_module, ch as u8, pattern_data);
             match result {
                 Some(PatternResult::StopChannel(channel)) => mixer_guard.stop_channel(channel),
@@ -200,10 +201,10 @@ impl SfxPlayer {
     fn handle_pattern(
         sfx_module: &SfxModule,
         channel: u8,
-        mut pattern_data: Buffer,
+        mut pattern_data: Cursor<&[u8]>,
     ) -> Option<PatternResult> {
-        let note1 = pattern_data.fetch_word();
-        let note2 = pattern_data.fetch_word();
+        let note1 = pattern_data.read_u16::<BigEndian>().unwrap();
+        let note2 = pattern_data.read_u16::<BigEndian>().unwrap();
         trace!("Note1: {}, Note2: {}", note1, note2);
         if note1 != 0xfffd {
             if note1 == 0xfffe {

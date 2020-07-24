@@ -1,10 +1,10 @@
 use log::{debug, trace, warn};
 use rand::random;
 use std::cmp;
+use std::io::Cursor;
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, RwLock};
 
-use crate::buffer::Buffer;
 use crate::mixer;
 use crate::mixer::{Mixer, MixerAudio, MixerChunk};
 use crate::opcode::Opcode;
@@ -674,7 +674,8 @@ impl VirtualMachine {
             VideoBufferSeg::Cinematic => self.resource.seg_cinematic,
             VideoBufferSeg::Video2 => self.resource.seg_video2,
         };
-        let mut buffer = Buffer::with_offset(&self.resource.memory[segment..], offset);
+        let mut buffer = Cursor::new(&self.resource.memory[segment..]);
+		buffer.set_position(offset as u64);
         let color = 0xff;
         let scale = self.scale as i32;
         let point = Point {
@@ -707,7 +708,8 @@ impl VirtualMachine {
         );
 
         let mut buffer =
-            Buffer::with_offset(&self.resource.memory[self.resource.seg_cinematic..], offset);
+            Cursor::new(&self.resource.memory[self.resource.seg_cinematic..]);
+		buffer.set_position(offset as u64);
         let zoom = self.scale as i32;
         let point = Point {
             x: x * zoom,

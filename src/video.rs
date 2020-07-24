@@ -1,7 +1,9 @@
 use log::{debug, warn};
 use std::cmp;
+use std::io::Cursor;
 
-use crate::buffer::Buffer;
+use byteorder::{BigEndian, ReadBytesExt};
+
 use crate::font::FONT;
 use crate::strings::STRINGS_TABLE_ENG;
 use crate::sys::SDLSys;
@@ -55,17 +57,17 @@ struct Polygon {
 }
 
 impl Polygon {
-    pub fn read_vertices(buffer: &mut Buffer, zoom: u32) -> Polygon {
-        let bbw = buffer.fetch_byte() as u32 * zoom / 64;
-        let bbh = buffer.fetch_byte() as u32 * zoom / 64;
-        let num_points = buffer.fetch_byte() as usize;
+    pub fn read_vertices(buffer: &mut Cursor<&[u8]>, zoom: u32) -> Polygon {
+        let bbw = buffer.read_u8().unwrap() as u32 * zoom / 64;
+        let bbh = buffer.read_u8().unwrap() as u32 * zoom / 64;
+        let num_points = buffer.read_u8().unwrap() as usize;
         assert!((num_points & 1) == 0 && num_points < MAX_POINTS);
 
         let zoom = zoom as i32;
         let mut points = Vec::new();
         for _ in 0..num_points {
-            let x = buffer.fetch_byte() as i32 * zoom / 64;
-            let y = buffer.fetch_byte() as i32 * zoom / 64;
+            let x = buffer.read_u8().unwrap() as i32 * zoom / 64;
+            let y = buffer.read_u8().unwrap() as i32 * zoom / 64;
             points.push(Point { x, y });
         }
         Polygon { bbw, bbh, points }
@@ -224,13 +226,13 @@ impl Video {
 
     pub fn read_and_draw_polygon(
         &mut self,
-        buffer: &mut Buffer,
+        buffer: &mut Cursor<&[u8]>,
         color: u8,
         zoom: u32,
         point: Point,
     ) {
         let mut color = color;
-        let mut i = buffer.fetch_byte();
+        let mut i = buffer.read_u8().unwrap();
 
         if i >= 0xc0 {
             if color & 0x80 > 0 {
@@ -249,19 +251,19 @@ impl Video {
         }
     }
 
-    fn read_and_draw_polygon_hierarchy(&mut self, buffer: &mut Buffer, zoom: u32, point: Point) {
+    fn read_and_draw_polygon_hierarchy(&mut self, buffer: &mut Cursor<&[u8]>, zoom: u32, point: Point) {
         let mut pt = point;
         let zoom32 = zoom as i32;
-        pt.x = pt.x.wrapping_sub(buffer.fetch_byte() as i32 * zoom32 / 64);
-        pt.y = pt.y.wrapping_sub(buffer.fetch_byte() as i32 * zoom32 / 64);
+        pt.x = pt.x.wrapping_sub(buffer.read_u8().unwrap() as i32 * zoom32 / 64);
+        pt.y = pt.y.wrapping_sub(buffer.read_u8().unwrap() as i32 * zoom32 / 64);
 
-        let children = buffer.fetch_byte() as usize + 1;
+        let children = buffer.read_u8().unwrap() as usize + 1;
         debug!("read_and_draw_polygon_hierarchy children={}", children);
         for _ in 0..children {
-            let mut offset = buffer.fetch_word() as usize;
+            let mut offset = buffer.read_u16::<BigEndian>().unwrap() as usize;
 
-            let x = buffer.fetch_byte() as i32 * zoom32 / 64;
-            let y = buffer.fetch_byte() as i32 * zoom32 / 64;
+            let x = buffer.read_u8().unwrap() as i32 * zoom32 / 64;
+            let y = buffer.read_u8().unwrap() as i32 * zoom32 / 64;
             let po = Point {
                 x: pt.x.wrapping_add(x),
                 y: pt.y.wrapping_add(y),
@@ -272,16 +274,16 @@ impl Video {
             offset &= 0x7fff;
 
             if _bp & 0x8000 > 0 {
-                color = buffer.fetch_byte() & 0x7f;
-                buffer.offset += 1;
+                color = buffer.read_u8().unwrap() & 0x7f;
+                buffer.set_position(buffer.position() + 1);
             }
 
-            let bak_offset = buffer.offset;
-            buffer.offset = offset * 2;
+            let bak_pos = buffer.position();
+            buffer.set_position(offset as u64 * 2);
 
             self.read_and_draw_polygon(buffer, color, zoom, po);
 
-            buffer.offset = bak_offset;
+            buffer.set_position(bak_pos);
         }
     }
 
