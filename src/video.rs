@@ -50,7 +50,7 @@ pub struct Point {
     pub y: i32,
 }
 
-struct Polygon {
+pub struct Polygon {
     bbw: u32,
     bbh: u32,
     points: Vec<Point>,
@@ -224,13 +224,14 @@ impl Video {
         }
     }
 
-    pub fn read_and_draw_polygon(
+    pub fn read_polygons(
         &mut self,
         buffer: &mut Cursor<&[u8]>,
         color: u8,
         zoom: u32,
         point: Point,
-    ) -> Result<()> {
+    ) -> Result<Vec<(Polygon, u8, Point)>> {
+        let mut polygons = Vec::new();
         let mut color = color;
         let mut i = buffer.read_u8()?;
 
@@ -238,33 +239,32 @@ impl Video {
             if color & 0x80 > 0 {
                 color = i & 0x3f;
             }
-
-            let polygon = Polygon::read_vertices(buffer, zoom)?;
-            self.fill_polygon(polygon, color, point);
+            polygons.push((Polygon::read_vertices(buffer, zoom)?, color, point));
         } else {
             i &= 0x3f;
             if i == 2 {
-                self.read_and_draw_polygon_hierarchy(buffer, zoom, point)?;
+                polygons.append(&mut self.read_polygon_hierarchy(buffer, zoom, point)?);
             } else {
-                warn!("read_and_draw_polygon: i != 2 ({})", i);
+                warn!("read_polygons: i != 2 ({})", i);
             }
         }
-        Ok(())
+        Ok(polygons)
     }
 
-    fn read_and_draw_polygon_hierarchy(
+    fn read_polygon_hierarchy(
         &mut self,
         buffer: &mut Cursor<&[u8]>,
         zoom: u32,
         point: Point,
-    ) -> Result<()> {
+    ) -> Result<Vec<(Polygon, u8, Point)>> {
+        let mut polygons = Vec::new();
         let mut pt = point;
         let zoom32 = zoom as i32;
         pt.x = pt.x.wrapping_sub(buffer.read_u8()? as i32 * zoom32 / 64);
         pt.y = pt.y.wrapping_sub(buffer.read_u8()? as i32 * zoom32 / 64);
 
         let children = buffer.read_u8()? as usize + 1;
-        debug!("read_and_draw_polygon_hierarchy children={}", children);
+        debug!("read_polygon_hierarchy children={}", children);
         for _ in 0..children {
             let mut offset = buffer.read_u16::<BigEndian>()? as usize;
 
@@ -287,9 +287,22 @@ impl Video {
             let bak_pos = buffer.position();
             buffer.set_position(offset as u64 * 2);
 
-            self.read_and_draw_polygon(buffer, color, zoom, po)?;
+            polygons.append(&mut self.read_polygons(buffer, color, zoom, po)?);
 
             buffer.set_position(bak_pos);
+        }
+        Ok(polygons)
+    }
+
+    pub fn read_and_draw_polygon(
+        &mut self,
+        buffer: &mut Cursor<&[u8]>,
+        color: u8,
+        zoom: u32,
+        point: Point,
+    ) -> Result<()> {
+        for (polygon, color, point) in self.read_polygons(buffer, color, zoom, point)? {
+            self.fill_polygon(polygon, color, point);
         }
         Ok(())
     }
