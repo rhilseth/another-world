@@ -1,7 +1,7 @@
 use log::{debug, trace, warn};
 use rand::random;
 use std::cmp;
-use std::io::Cursor;
+use std::io::{Cursor, Result};
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, RwLock};
 
@@ -617,7 +617,7 @@ impl VirtualMachine {
         let resource_id = self.fetch_word();
         let delay = self.fetch_word();
         let pos = self.fetch_byte();
-        self.play_music_resource(resource_id, delay, pos);
+        self.play_music_resource(resource_id, delay, pos).unwrap();
     }
 
     fn op_draw_poly_sprite(&mut self, val: u8) {
@@ -675,7 +675,7 @@ impl VirtualMachine {
             VideoBufferSeg::Video2 => self.resource.seg_video2,
         };
         let mut buffer = Cursor::new(&self.resource.memory[segment..]);
-		buffer.set_position(offset as u64);
+        buffer.set_position(offset as u64);
         let color = 0xff;
         let scale = self.scale as i32;
         let point = Point {
@@ -683,7 +683,8 @@ impl VirtualMachine {
             y: y * scale,
         };
         self.video
-            .read_and_draw_polygon(&mut buffer, color, zoom * self.scale, point);
+            .read_and_draw_polygon(&mut buffer, color, zoom * self.scale, point)
+            .unwrap();
     }
 
     fn op_draw_poly_background(&mut self, val: u8) {
@@ -707,20 +708,16 @@ impl VirtualMachine {
             val, offset, x, y
         );
 
-        let mut buffer =
-            Cursor::new(&self.resource.memory[self.resource.seg_cinematic..]);
-		buffer.set_position(offset as u64);
+        let mut buffer = Cursor::new(&self.resource.memory[self.resource.seg_cinematic..]);
+        buffer.set_position(offset as u64);
         let zoom = self.scale as i32;
         let point = Point {
             x: x * zoom,
             y: y * zoom,
         };
-        self.video.read_and_draw_polygon(
-            &mut buffer,
-            COLOR_BLACK,
-            DEFAULT_ZOOM * self.scale,
-            point,
-        );
+        self.video
+            .read_and_draw_polygon(&mut buffer, COLOR_BLACK, DEFAULT_ZOOM * self.scale, point)
+            .unwrap();
     }
 
     fn stop_channel(&mut self, channel: u8) {
@@ -748,14 +745,17 @@ impl VirtualMachine {
         }
     }
 
-    fn play_music_resource(&mut self, resource_id: u16, delay: u16, pos: u8) {
+    fn play_music_resource(&mut self, resource_id: u16, delay: u16, pos: u8) -> Result<()> {
         debug!(
             "play_music_resource(0x{:x}, {}, {})",
             resource_id, delay, pos
         );
         if resource_id != 0 {
             let mut delay = delay;
-            if let Some(sfx_module) = self.resource.load_sfx_module(resource_id, &mut delay, pos) {
+            if let Some(sfx_module) = self
+                .resource
+                .load_sfx_module(resource_id, &mut delay, pos)?
+            {
                 self.player.set_sfx_module(sfx_module);
                 self.player.set_events_delay(delay);
 
@@ -767,5 +767,6 @@ impl VirtualMachine {
         } else {
             self.player.stop();
         }
+        Ok(())
     }
 }

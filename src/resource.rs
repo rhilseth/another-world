@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::io::prelude::*;
-use std::io::{Cursor, Error, ErrorKind, SeekFrom};
+use std::io::{Cursor, Error, ErrorKind, Result, SeekFrom};
 use std::path::{Path, PathBuf};
 
 use byteorder::{BigEndian, ByteOrder, ReadBytesExt};
@@ -29,13 +29,13 @@ enum MemEntryState {
 }
 
 impl MemEntryState {
-    fn from_u8(val: u8) -> Self {
+    fn from_u8(val: u8) -> Result<Self> {
         match val {
-            0 => MemEntryState::NotNeeded,
-            1 => MemEntryState::Loaded,
-            2 => MemEntryState::LoadMe,
-            0xff => MemEntryState::EndOfMemList,
-            _ => panic!("Unknown MemEntryState: {}", val),
+            0 => Ok(MemEntryState::NotNeeded),
+            1 => Ok(MemEntryState::Loaded),
+            2 => Ok(MemEntryState::LoadMe),
+            0xff => Ok(MemEntryState::EndOfMemList),
+            _ => Err(Error::new(ErrorKind::Other, format!("Unknown MemEntryState: {}", val))),
         }
     }
 }
@@ -149,21 +149,21 @@ impl Resource {
         ))
     }
 
-    fn read_memlist_from_executable(&mut self, executable_name: &str) -> std::io::Result<()> {
+    fn read_memlist_from_executable(&mut self, executable_name: &str) -> Result<()> {
         let path = self.asset_path.join(executable_name);
         let mut file = File::open(&path)?;
         let offset = Resource::find_memlist_offset(&mut file)?;
         file.seek(SeekFrom::Start(offset))?;
-        self.read_entries(&mut file);
+        self.read_entries(&mut file)?;
         Ok(())
     }
 
-    pub fn read_memlist(&mut self) -> std::io::Result<()> {
+    pub fn read_memlist(&mut self) -> Result<()> {
         match self.asset_platform {
             AssetPlatform::PC => {
                 let path = self.asset_path.join("Memlist.bin");
                 let mut file = File::open(path)?;
-                self.read_entries(&mut file);
+                self.read_entries(&mut file)?;
             }
             AssetPlatform::Amiga => {
                 self.read_memlist_from_executable("another")?;
@@ -315,13 +315,18 @@ impl Resource {
         Some(MixerChunk::new(&data[0..data_len], len, loop_len))
     }
 
-    pub fn load_sfx_module(&self, resource_id: u16, delay: &mut u16, pos: u8) -> Option<SfxModule> {
+    pub fn load_sfx_module(
+        &self,
+        resource_id: u16,
+        delay: &mut u16,
+        pos: u8,
+    ) -> Result<Option<SfxModule>> {
         debug!("load_sfx_module(0x{:x}, {}, {}", resource_id, delay, pos);
         let resource_id = resource_id as usize;
         let entry = &self.mem_list[resource_id];
 
         if entry.state != MemEntryState::Loaded || entry.entry_type != EntryType::Music {
-            return None;
+            return Ok(None);
         }
         let data = &self.memory[entry.buf_ptr..];
         let cur_order = pos;
@@ -341,32 +346,32 @@ impl Resource {
         let mut samples = Vec::new();
         for i in 0..15 {
             let buf = &self.memory[entry.buf_ptr + 2 + i * 4..];
-            samples.push(self.prepare_instrument(&buf));
+            samples.push(self.prepare_instrument(&buf)?);
         }
 
         let module = SfxModule::new(data.into(), cur_order, num_order, order_table, samples);
-        Some(module)
+        Ok(Some(module))
     }
 
-    fn prepare_instrument(&self, buf: &[u8]) -> Option<SfxInstrument> {
+    fn prepare_instrument(&self, buf: &[u8]) -> Result<Option<SfxInstrument>> {
         let mut buffer = Cursor::new(&buf);
-        let resource_id = buffer.read_u16::<BigEndian>().unwrap();
+        let resource_id = buffer.read_u16::<BigEndian>()?;
         if resource_id == 0 {
-            return None;
+            return Ok(None);
         }
-        let volume = buffer.read_u16::<BigEndian>().unwrap();
+        let volume = buffer.read_u16::<BigEndian>()?;
         let entry = &self.mem_list[resource_id as usize];
         if entry.state != MemEntryState::Loaded || entry.entry_type != EntryType::Sound {
             panic!("Error loading instrument 0x{:x}", resource_id);
         }
         let mut data = self.memory[entry.buf_ptr..entry.buf_ptr + entry.size].to_vec();
         if data.len() == 0 {
-            return None;
+            return Ok(None);
         }
         for item in data.iter_mut().take(12).skip(8) {
             *item = 0;
         }
-        Some(SfxInstrument::new(data, volume))
+        Ok(Some(SfxInstrument::new(data, volume)))
     }
 
     fn read_bank(
@@ -448,25 +453,26 @@ impl Resource {
         }
     }
 
-    fn read_entries<R: Read>(&mut self, reader: &mut R) {
+    fn read_entries<R: Read>(&mut self, reader: &mut R) -> Result<()> {
         loop {
             let entry = MemEntry {
-                state: MemEntryState::from_u8(reader.read_u8().unwrap()),
-                entry_type: EntryType::from_u8(reader.read_u8().unwrap()),
-                buf_ptr: reader.read_u16::<BigEndian>().unwrap() as usize,
-                unk4: reader.read_u16::<BigEndian>().unwrap(),
-                rank_num: reader.read_u8().unwrap(),
-                bank_id: reader.read_u8().unwrap(),
-                bank_offset: reader.read_u32::<BigEndian>().unwrap(),
-                unkc: reader.read_u16::<BigEndian>().unwrap(),
-                packed_size: reader.read_u16::<BigEndian>().unwrap() as usize,
-                unk10: reader.read_u16::<BigEndian>().unwrap(),
-                size: reader.read_u16::<BigEndian>().unwrap() as usize,
+                state: MemEntryState::from_u8(reader.read_u8()?)?,
+                entry_type: EntryType::from_u8(reader.read_u8()?),
+                buf_ptr: reader.read_u16::<BigEndian>()? as usize,
+                unk4: reader.read_u16::<BigEndian>()?,
+                rank_num: reader.read_u8()?,
+                bank_id: reader.read_u8()?,
+                bank_offset: reader.read_u32::<BigEndian>()?,
+                unkc: reader.read_u16::<BigEndian>()?,
+                packed_size: reader.read_u16::<BigEndian>()? as usize,
+                unk10: reader.read_u16::<BigEndian>()?,
+                size: reader.read_u16::<BigEndian>()? as usize,
             };
             if let MemEntryState::EndOfMemList = entry.state {
                 break;
             }
             self.mem_list.push(entry);
         }
+        Ok(())
     }
 }

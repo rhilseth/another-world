@@ -1,10 +1,10 @@
-use std::io::Cursor;
+use std::io::{Cursor, Result};
 use std::sync::mpsc::{sync_channel, Receiver};
 use std::sync::{Arc, RwLock};
 
 use byteorder::{BigEndian, ReadBytesExt};
 use chrono;
-use log::{debug, trace};
+use log::{debug, error, trace};
 use timer::{Guard, Timer};
 
 use crate::mixer::{MixerAudio, MixerChunk};
@@ -65,10 +65,10 @@ pub struct SfxPattern {
 }
 
 impl SfxPattern {
-    fn from_notes(note1: u16, note2: u16, sample: &SfxInstrument) -> SfxPattern {
+    fn from_notes(note1: u16, note2: u16, sample: &SfxInstrument) -> Result<SfxPattern> {
         let mut buffer = Cursor::new(&sample.data);
-        let sample_len = (buffer.read_u16::<BigEndian>().unwrap() * 2) as usize;
-        let loop_len = (buffer.read_u16::<BigEndian>().unwrap() * 2) as usize;
+        let sample_len = (buffer.read_u16::<BigEndian>()? * 2) as usize;
+        let loop_len = (buffer.read_u16::<BigEndian>()? * 2) as usize;
         let (loop_pos, loop_len) = if loop_len != 0 {
             (sample_len, loop_len)
         } else {
@@ -93,7 +93,7 @@ impl SfxPattern {
             }
         }
         let sample_start = 8;
-        SfxPattern {
+        Ok(SfxPattern {
             note1,
             note2,
             sample_buffer: sample.data[sample_start..].to_vec(),
@@ -101,7 +101,7 @@ impl SfxPattern {
             loop_pos,
             loop_len,
             sample_volume: m,
-        }
+        })
     }
 }
 
@@ -164,20 +164,23 @@ impl SfxPlayer {
             let start = sfx_module.cur_pos + order * 1024 + ch * 4;
             trace!("Start: {}", start);
             let pattern_data = Cursor::new(&sfx_module.data[start..start + 4]);
-            let result = SfxPlayer::handle_pattern(&sfx_module, ch as u8, pattern_data);
-            match result {
-                Some(PatternResult::StopChannel(channel)) => mixer_guard.stop_channel(channel),
-                Some(PatternResult::MarkVariable(var)) => variable_value = Some(var as i16),
-                Some(PatternResult::Pattern(channel, pat)) => {
-                    trace!("Playing music");
-                    assert!(pat.note1 >= 0x37);
-                    assert!(pat.note1 < 0x1000);
-                    let freq = (7_159_092 / (pat.note1 * 2) as u32) as u16;
-                    let volume = pat.sample_volume;
-                    let chunk = MixerChunk::from_sfx_pattern(pat);
-                    mixer_guard.play_channel(channel, chunk, freq, volume as u8);
+            if let Ok(result) = SfxPlayer::handle_pattern(&sfx_module, ch as u8, pattern_data) {
+                match result {
+                    Some(PatternResult::StopChannel(channel)) => mixer_guard.stop_channel(channel),
+                    Some(PatternResult::MarkVariable(var)) => variable_value = Some(var as i16),
+                    Some(PatternResult::Pattern(channel, pat)) => {
+                        trace!("Playing music");
+                        assert!(pat.note1 >= 0x37);
+                        assert!(pat.note1 < 0x1000);
+                        let freq = (7_159_092 / (pat.note1 * 2) as u32) as u16;
+                        let volume = pat.sample_volume;
+                        let chunk = MixerChunk::from_sfx_pattern(pat);
+                        mixer_guard.play_channel(channel, chunk, freq, volume as u8);
+                    }
+                    None => {}
                 }
-                None => {}
+            } else {
+                error!("Error handling sfx pattern");
             }
         }
 
@@ -202,29 +205,29 @@ impl SfxPlayer {
         sfx_module: &SfxModule,
         channel: u8,
         mut pattern_data: Cursor<&[u8]>,
-    ) -> Option<PatternResult> {
-        let note1 = pattern_data.read_u16::<BigEndian>().unwrap();
-        let note2 = pattern_data.read_u16::<BigEndian>().unwrap();
+    ) -> Result<Option<PatternResult>> {
+        let note1 = pattern_data.read_u16::<BigEndian>()?;
+        let note2 = pattern_data.read_u16::<BigEndian>()?;
         trace!("Note1: {}, Note2: {}", note1, note2);
         if note1 != 0xfffd {
             if note1 == 0xfffe {
                 trace!("Stop channel {}", channel);
-                return Some(PatternResult::StopChannel(channel));
+                return Ok(Some(PatternResult::StopChannel(channel)));
             }
             let sample_index = ((note2 & 0xf000) >> 12) as usize;
             if sample_index != 0 {
                 trace!("Have sample index");
                 if let Some(sample) = sfx_module.samples[sample_index - 1].as_ref() {
                     trace!("Sample len: {}", sample.data.len());
-                    return Some(PatternResult::Pattern(
+                    return Ok(Some(PatternResult::Pattern(
                         channel,
-                        SfxPattern::from_notes(note1, note2, &sample),
-                    ));
+                        SfxPattern::from_notes(note1, note2, &sample)?,
+                    )));
                 }
             }
         } else {
-            return Some(PatternResult::MarkVariable(note2));
+            return Ok(Some(PatternResult::MarkVariable(note2)));
         }
-        None
+        Ok(None)
     }
 }
