@@ -33,9 +33,9 @@ struct Opt {
 fn main() -> std::io::Result<()> {
     let opt = Opt::from_args();
     pretty_env_logger::init();
-    let mut resource = resource::Resource::detect_platform(opt.asset_path);
+    let memlist_reader = resource::MemlistReader::detect_platform(opt.asset_path);
+    let resource = memlist_reader.read_memlist()?;
     let asset_platform = resource.asset_platform;
-    resource.read_memlist()?;
 
     let sdl_context = sdl2::init().unwrap();
 

@@ -35,7 +35,10 @@ impl MemEntryState {
             1 => Ok(MemEntryState::Loaded),
             2 => Ok(MemEntryState::LoadMe),
             0xff => Ok(MemEntryState::EndOfMemList),
-            _ => Err(Error::new(ErrorKind::Other, format!("Unknown MemEntryState: {}", val))),
+            _ => Err(Error::new(
+                ErrorKind::Other,
+                format!("Unknown MemEntryState: {}", val),
+            )),
         }
     }
 }
@@ -80,44 +83,20 @@ pub struct MemEntry {
     size: usize,
 }
 
-pub struct Resource {
-    mem_list: Vec<MemEntry>,
-    pub memory: Vec<u8>,
-    pub current_part_id: u16,
-    script_bak_ptr: usize,
-    script_cur_ptr: usize,
-    vid_bak_ptr: usize,
-    vid_cur_ptr: usize,
-    pub seg_palettes: usize,
-    pub seg_bytecode: usize,
-    pub seg_cinematic: usize,
-    pub seg_video2: usize,
-    pub copy_vid_ptr: bool,
+pub struct MemlistReader {
     asset_path: PathBuf,
-    pub asset_platform: AssetPlatform,
+    asset_platform: AssetPlatform,
 }
 
-impl Resource {
-    pub fn new(asset_path: PathBuf, asset_platform: AssetPlatform) -> Resource {
-        Resource {
-            mem_list: Vec::new(),
-            memory: vec![0; MEM_BLOCK_SIZE],
-            current_part_id: 0,
-            script_bak_ptr: 0,
-            script_cur_ptr: 0,
-            vid_bak_ptr: MEM_BLOCK_SIZE - 0x800 * 16,
-            vid_cur_ptr: MEM_BLOCK_SIZE - 0x800 * 16,
-            seg_palettes: 0,
-            seg_bytecode: 0,
-            seg_cinematic: 0,
-            seg_video2: 0,
-            copy_vid_ptr: false,
+impl MemlistReader {
+    pub fn new(asset_path: PathBuf, asset_platform: AssetPlatform) -> MemlistReader {
+        MemlistReader {
             asset_path,
             asset_platform,
         }
     }
 
-    pub fn detect_platform(asset_path: PathBuf) -> Resource {
+    pub fn detect_platform(asset_path: PathBuf) -> MemlistReader {
         let asset_platform = if asset_path.join("another").exists() {
             info!("Detected Amiga binary");
             AssetPlatform::Amiga
@@ -128,7 +107,7 @@ impl Resource {
             info!("Assuming PC / Memlist.bin version");
             AssetPlatform::PC
         };
-        Resource::new(asset_path, asset_platform)
+        MemlistReader::new(asset_path, asset_platform)
     }
 
     fn find_memlist_offset<R: Read>(reader: &mut R) -> std::io::Result<u64> {
@@ -149,30 +128,95 @@ impl Resource {
         ))
     }
 
-    fn read_memlist_from_executable(&mut self, executable_name: &str) -> Result<()> {
+    fn read_memlist_from_executable(&self, executable_name: &str) -> Result<Vec<MemEntry>> {
         let path = self.asset_path.join(executable_name);
         let mut file = File::open(&path)?;
-        let offset = Resource::find_memlist_offset(&mut file)?;
+        let offset = MemlistReader::find_memlist_offset(&mut file)?;
         file.seek(SeekFrom::Start(offset))?;
-        self.read_entries(&mut file)?;
-        Ok(())
+        self.read_entries(&mut file)
     }
 
-    pub fn read_memlist(&mut self) -> Result<()> {
-        match self.asset_platform {
+    fn read_entries<R: Read>(&self, reader: &mut R) -> Result<Vec<MemEntry>> {
+        let mut mem_list = Vec::new();
+        loop {
+            let entry = MemEntry {
+                state: MemEntryState::from_u8(reader.read_u8()?)?,
+                entry_type: EntryType::from_u8(reader.read_u8()?),
+                buf_ptr: reader.read_u16::<BigEndian>()? as usize,
+                unk4: reader.read_u16::<BigEndian>()?,
+                rank_num: reader.read_u8()?,
+                bank_id: reader.read_u8()?,
+                bank_offset: reader.read_u32::<BigEndian>()?,
+                unkc: reader.read_u16::<BigEndian>()?,
+                packed_size: reader.read_u16::<BigEndian>()? as usize,
+                unk10: reader.read_u16::<BigEndian>()?,
+                size: reader.read_u16::<BigEndian>()? as usize,
+            };
+            if let MemEntryState::EndOfMemList = entry.state {
+                break;
+            }
+            mem_list.push(entry);
+        }
+        Ok(mem_list)
+    }
+
+    pub fn read_memlist(self) -> Result<Resource> {
+        let mem_list = match self.asset_platform {
             AssetPlatform::PC => {
                 let path = self.asset_path.join("Memlist.bin");
                 let mut file = File::open(path)?;
-                self.read_entries(&mut file)?;
+                self.read_entries(&mut file)?
             }
-            AssetPlatform::Amiga => {
-                self.read_memlist_from_executable("another")?;
-            }
-            AssetPlatform::AtariST => {
-                self.read_memlist_from_executable("START.PRG")?;
-            }
+            AssetPlatform::Amiga => self.read_memlist_from_executable("another")?,
+            AssetPlatform::AtariST => self.read_memlist_from_executable("START.PRG")?,
+        };
+        Ok(Resource::new(
+            mem_list,
+            self.asset_path,
+            self.asset_platform,
+        ))
+    }
+}
+
+pub struct Resource {
+    mem_list: Vec<MemEntry>,
+    pub memory: Vec<u8>,
+    pub current_part_id: u16,
+    script_bak_ptr: usize,
+    script_cur_ptr: usize,
+    vid_bak_ptr: usize,
+    vid_cur_ptr: usize,
+    pub seg_palettes: usize,
+    pub seg_bytecode: usize,
+    pub seg_cinematic: usize,
+    pub seg_video2: usize,
+    pub copy_vid_ptr: bool,
+    asset_path: PathBuf,
+    pub asset_platform: AssetPlatform,
+}
+
+impl Resource {
+    pub fn new(
+        mem_list: Vec<MemEntry>,
+        asset_path: PathBuf,
+        asset_platform: AssetPlatform,
+    ) -> Resource {
+        Resource {
+            mem_list,
+            memory: vec![0; MEM_BLOCK_SIZE],
+            current_part_id: 0,
+            script_bak_ptr: 0,
+            script_cur_ptr: 0,
+            vid_bak_ptr: MEM_BLOCK_SIZE - 0x800 * 16,
+            vid_cur_ptr: MEM_BLOCK_SIZE - 0x800 * 16,
+            seg_palettes: 0,
+            seg_bytecode: 0,
+            seg_cinematic: 0,
+            seg_video2: 0,
+            copy_vid_ptr: false,
+            asset_path,
+            asset_platform,
         }
-        Ok(())
     }
 
     pub fn setup_part(&mut self, part_id: u16) {
@@ -446,28 +490,5 @@ impl Resource {
                 self.script_cur_ptr += entry.size;
             }
         }
-    }
-
-    fn read_entries<R: Read>(&mut self, reader: &mut R) -> Result<()> {
-        loop {
-            let entry = MemEntry {
-                state: MemEntryState::from_u8(reader.read_u8()?)?,
-                entry_type: EntryType::from_u8(reader.read_u8()?),
-                buf_ptr: reader.read_u16::<BigEndian>()? as usize,
-                unk4: reader.read_u16::<BigEndian>()?,
-                rank_num: reader.read_u8()?,
-                bank_id: reader.read_u8()?,
-                bank_offset: reader.read_u32::<BigEndian>()?,
-                unkc: reader.read_u16::<BigEndian>()?,
-                packed_size: reader.read_u16::<BigEndian>()? as usize,
-                unk10: reader.read_u16::<BigEndian>()?,
-                size: reader.read_u16::<BigEndian>()? as usize,
-            };
-            if let MemEntryState::EndOfMemList = entry.state {
-                break;
-            }
-            self.mem_list.push(entry);
-        }
-        Ok(())
     }
 }

@@ -3,6 +3,7 @@ name = "anotherworld"
 version = "0.1.0"
 authors = ["Raymond Hilseth <rhilseth@gmail.com>"]
 edition = "2018"
+default-run = "anotherworld"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
