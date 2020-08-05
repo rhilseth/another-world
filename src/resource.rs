@@ -233,12 +233,7 @@ impl Resource {
 
     pub fn invalidate_resource(&mut self) {
         for entry in self.mem_list.iter_mut() {
-            match entry.entry_type {
-                EntryType::PolyAnim | EntryType::Unknown(_) => {
-                    entry.state = MemEntryState::NotNeeded;
-                }
-                _ => {}
-            }
+            entry.state = MemEntryState::NotNeeded;
         }
         self.script_cur_ptr = self.script_bak_ptr;
     }
