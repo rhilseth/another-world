@@ -44,7 +44,7 @@ impl MemEntryState {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
-enum EntryType {
+pub enum EntryType {
     Sound,
     Music,
     PolyAnim,
@@ -71,7 +71,7 @@ impl EntryType {
 #[derive(Debug)]
 pub struct MemEntry {
     state: MemEntryState,
-    entry_type: EntryType,
+    pub entry_type: EntryType,
     buf_ptr: usize,
     unk4: u16,
     rank_num: u8,
@@ -179,7 +179,7 @@ impl MemlistReader {
 }
 
 pub struct Resource {
-    mem_list: Vec<MemEntry>,
+    pub mem_list: Vec<MemEntry>,
     pub memory: Vec<u8>,
     pub current_part_id: u16,
     script_bak_ptr: usize,
