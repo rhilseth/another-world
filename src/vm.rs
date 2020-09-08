@@ -236,14 +236,14 @@ impl VirtualMachine {
                 self.stack_ptr = 0;
                 self.goto_next_thread = false;
 
-                debug!("host_frame() thread_id=0x{:02x} n=0x{:02x}", thread_id, n);
+                trace!("host_frame() thread_id=0x{:02x} n=0x{:02x}", thread_id, n);
 
                 self.execute_thread();
 
                 // Save pc since it will be modified on the next iteration
                 self.threads[thread_id].pc = self.script_ptr - self.resource.seg_bytecode;
 
-                debug!(
+                trace!(
                     "host_frame() thread_id=0x{:02x} pos=0x{:x}",
                     thread_id, self.threads[thread_id].pc
                 );
@@ -269,7 +269,7 @@ impl VirtualMachine {
         while !self.goto_next_thread {
             if let Some(rx) = &self.variable_receiver {
                 if let Ok(value) = rx.try_recv() {
-                    debug!("Got variable value from sfxplayer: {}", value);
+                    warn!("Got variable value from sfxplayer: {}", value);
                     self.variables[VM_VARIABLE_MUS_MARK] = value;
                 }
             }
@@ -315,21 +315,21 @@ impl VirtualMachine {
     fn op_mov_const(&mut self) {
         let variable_id = self.fetch_byte() as usize;
         let value = self.fetch_word() as i16;
-        debug!("mov_const(0x{:02x}, {})", variable_id, value);
+        trace!("mov_const(0x{:02x}, {})", variable_id, value);
         self.variables[variable_id] = value;
     }
 
     fn op_mov(&mut self) {
         let dst_variable_id = self.fetch_byte() as usize;
         let src_variable_id = self.fetch_byte() as usize;
-        debug!("mov(0x{:02x}, 0x{:02x})", dst_variable_id, src_variable_id);
+        trace!("mov(0x{:02x}, 0x{:02x})", dst_variable_id, src_variable_id);
         self.variables[dst_variable_id] = self.variables[src_variable_id];
     }
 
     fn op_add(&mut self) {
         let dst_variable_id = self.fetch_byte() as usize;
         let src_variable_id = self.fetch_byte() as usize;
-        debug!("add(0x{:02x}, 0x{:02x})", dst_variable_id, src_variable_id);
+        trace!("add(0x{:02x}, 0x{:02x})", dst_variable_id, src_variable_id);
         self.variables[dst_variable_id] =
             self.variables[dst_variable_id].wrapping_add(self.variables[src_variable_id]);
     }
@@ -338,14 +338,14 @@ impl VirtualMachine {
         // Insert gun sound hack here at some point
         let variable_id = self.fetch_byte() as usize;
         let value = self.fetch_word() as i16;
-        debug!("add_const(0x{:02x}, {})", variable_id, value);
+        trace!("add_const(0x{:02x}, {})", variable_id, value);
         self.variables[variable_id] = self.variables[variable_id].wrapping_add(value);
     }
 
     fn op_call(&mut self) {
         let offset = self.fetch_word();
 
-        debug!("call(0x{:x})", offset);
+        trace!("call(0x{:x})", offset);
         self.script_stack_calls[self.stack_ptr] = self.script_ptr - self.resource.seg_bytecode;
         if self.stack_ptr == STACK_SIZE {
             panic!("Stack overflow");
@@ -355,7 +355,7 @@ impl VirtualMachine {
     }
 
     fn op_ret(&mut self) {
-        debug!("ret()");
+        trace!("ret()");
         if self.stack_ptr == 0 {
             panic!("Stack underflow!");
         }
@@ -364,20 +364,20 @@ impl VirtualMachine {
     }
 
     fn op_pause_thread(&mut self) {
-        debug!("pause_thread()");
+        trace!("pause_thread()");
         self.goto_next_thread = true;
     }
 
     fn op_jmp(&mut self) {
         let pc_offset = self.fetch_word() as usize;
-        debug!("op_jmp(0x{:02x})", pc_offset);
+        trace!("op_jmp(0x{:02x})", pc_offset);
         self.script_ptr = self.resource.seg_bytecode + pc_offset;
     }
 
     fn op_set_set_vect(&mut self) {
         let thread_id = self.fetch_byte() as usize;
         let pc_offset_requested = self.fetch_word() as usize;
-        debug!(
+        trace!(
             "set_set_vect(0x{:02x}, 0x{:x})",
             thread_id, pc_offset_requested
         );
@@ -386,7 +386,7 @@ impl VirtualMachine {
 
     fn op_jnz(&mut self) {
         let i = self.fetch_byte() as usize;
-        debug!("jnz(0x{:02x})", i);
+        trace!("jnz(0x{:02x})", i);
         self.variables[i] = self.variables[i].wrapping_sub(1);
         if self.variables[i] != 0 {
             self.op_jmp();
@@ -408,7 +408,7 @@ impl VirtualMachine {
         } else {
             self.fetch_byte() as i16
         };
-        debug!(
+        trace!(
             "op_cond_jmp({}, 0x{:02x}, 0x{:02x}) var=0x{:02x}",
             opcode, b, a, var
         );
@@ -425,6 +425,20 @@ impl VirtualMachine {
                 false
             }
         };
+        if var == VM_VARIABLE_MUS_MARK {
+            let operator = match opcode & 7 {
+                0 => "==",
+                1 => "!=",
+                2 => ">",
+                3 => ">=",
+                4 => "<",
+                5 => "<=",
+                _ => " unsupported ",
+            };
+
+            warn!("Checking music variable {} {} {} = {:?}", b, operator, a, expr);
+        }
+
         if expr {
             self.op_jmp();
         } else {
@@ -434,7 +448,7 @@ impl VirtualMachine {
 
     fn op_set_palette(&mut self) {
         let palette_id = self.fetch_word();
-        debug!("set_palette({})", palette_id);
+        trace!("set_palette({})", palette_id);
         let palette_id = (palette_id >> 8) as u8;
         if palette_id >= 32 {
             return;
@@ -461,7 +475,7 @@ impl VirtualMachine {
         let n = i - thread_id + 1;
         let a = self.fetch_byte();
 
-        debug!("reset_thread({}, {}, {})", thread_id, i, a);
+        trace!("reset_thread({}, {}, {})", thread_id, i, a);
 
         match a {
             0 | 1 => {
@@ -483,21 +497,21 @@ impl VirtualMachine {
 
     fn op_select_video_page(&mut self) {
         let frame_buffer_id = self.fetch_byte();
-        debug!("select_video_page({})", frame_buffer_id);
+        trace!("select_video_page({})", frame_buffer_id);
         self.video.change_page_ptr1(frame_buffer_id);
     }
 
     fn op_fill_video_page(&mut self) {
         let page_id = self.fetch_byte();
         let color = self.fetch_byte();
-        debug!("fill_video_page({}, {})", page_id, color);
+        trace!("fill_video_page({}, {})", page_id, color);
         self.video.fill_video_page(page_id, color);
     }
 
     fn op_copy_video_page(&mut self) {
         let src_page_id = self.fetch_byte();
         let dst_page_id = self.fetch_byte();
-        debug!("copy_video_page({}, {})", src_page_id, dst_page_id);
+        trace!("copy_video_page({}, {})", src_page_id, dst_page_id);
         self.video.copy_page(
             src_page_id,
             dst_page_id,
@@ -507,7 +521,7 @@ impl VirtualMachine {
 
     fn op_blit_frame_buffer(&mut self) {
         let page_id = self.fetch_byte();
-        debug!("blit_frame_buffer({})", page_id);
+        trace!("blit_frame_buffer({})", page_id);
         //inp_handle_special_keys();
 
         let delay = self.sys.get_timestamp() - self.last_timestamp;
@@ -525,7 +539,7 @@ impl VirtualMachine {
     }
 
     fn op_kill_thread(&mut self) {
-        debug!("kill_thread()");
+        trace!("kill_thread()");
         self.script_ptr = self.resource.seg_bytecode + 0xffff;
         self.goto_next_thread = true;
     }
@@ -535,41 +549,41 @@ impl VirtualMachine {
         let x = self.fetch_byte() as u16;
         let y = self.fetch_byte() as u16;
         let color = self.fetch_byte();
-        self.video.draw_string(color, x, y, string_id, self.scale);
+        self.video.draw_string_id(color, x, y, string_id, self.scale);
     }
 
     fn op_sub(&mut self) {
         let i = self.fetch_byte() as usize;
         let j = self.fetch_byte() as usize;
-        debug!("sub(0x{:02x}, 0x{:02x})", i, j);
+        trace!("sub(0x{:02x}, 0x{:02x})", i, j);
         self.variables[i] = self.variables[i].wrapping_sub(self.variables[j]);
     }
 
     fn op_and(&mut self) {
         let variable_id = self.fetch_byte() as usize;
         let value = self.fetch_word() as i16;
-        debug!("and(0x{:02x}, {}", variable_id, value);
+        trace!("and(0x{:02x}, {}", variable_id, value);
         self.variables[variable_id] &= value;
     }
 
     fn op_or(&mut self) {
         let variable_id = self.fetch_byte() as usize;
         let value = self.fetch_word() as i16;
-        debug!("or(0x{:02x}, {}", variable_id, value);
+        trace!("or(0x{:02x}, {}", variable_id, value);
         self.variables[variable_id] |= value;
     }
 
     fn op_shl(&mut self) {
         let variable_id = self.fetch_byte() as usize;
         let left_shift = self.fetch_word();
-        debug!("shl(0x{:02x}, {}", variable_id, left_shift);
+        trace!("shl(0x{:02x}, {}", variable_id, left_shift);
         self.variables[variable_id] = ((self.variables[variable_id] as u16) << left_shift) as i16;
     }
 
     fn op_shr(&mut self) {
         let variable_id = self.fetch_byte() as usize;
         let right_shift = self.fetch_word();
-        debug!("shl(0x{:02x}, {}", variable_id, right_shift);
+        trace!("shl(0x{:02x}, {}", variable_id, right_shift);
         self.variables[variable_id] = ((self.variables[variable_id] as u16) >> right_shift) as i16;
     }
 
@@ -578,7 +592,7 @@ impl VirtualMachine {
         let freq = self.fetch_byte();
         let vol = self.fetch_byte();
         let channel = self.fetch_byte();
-        debug!(
+        trace!(
             "play_sound(0x{:x}, {}, {}, {})",
             resource_id, freq, vol, channel
         );
@@ -587,7 +601,7 @@ impl VirtualMachine {
 
     fn op_update_memlist(&mut self) {
         let resource_id = self.fetch_word();
-        debug!("update_memlist({})", resource_id);
+        trace!("update_memlist({})", resource_id);
 
         if resource_id == 0 {
             self.player.stop();
@@ -666,7 +680,7 @@ impl VirtualMachine {
             self.script_ptr -= 1;
             zoom = 0x40;
         }
-        debug!(
+        trace!(
             "draw_poly_sprite() offset=0x{:x}, x={}, y={}, zoom={}",
             offset, x, y, zoom
         );
@@ -703,7 +717,7 @@ impl VirtualMachine {
             y = self.video.height as i32 - 1;
             x += h;
         }
-        debug!(
+        trace!(
             "DrawPolyBackground: val: 0x{:02x} off={} x={} y={}",
             val, offset, x, y
         );

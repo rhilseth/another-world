@@ -204,23 +204,27 @@ impl Video {
         dst_slice.copy_from_slice(&buffer);
     }
 
-    pub fn draw_string(&mut self, color: u8, x: u16, y: u16, string_id: u16, scale: u32) {
+    pub fn draw_string_id(&mut self, color: u8, x: u16, y: u16, string_id: u16, scale: u32) {
         debug!("DrawString(0x{:04x}, {}, {}, {})", string_id, x, y, color);
         if let Some(entry) = STRINGS_TABLE_ENG.get(&string_id) {
-            let x_origin = x;
-            let mut x = x;
-            let mut y = y;
-            for c in entry.chars() {
-                if c == '\n' {
-                    y += 8;
-                    x = x_origin;
-                    continue;
-                }
-                self.draw_char(c, x, y, color, self.cur_page_ptr1, scale);
-                x += 1;
-            }
+            self.draw_string(color, x, y, entry, scale);
         } else {
             warn!("String with id 0x{:03x} not found", string_id);
+        }
+    }
+
+    pub fn draw_string(&mut self, color: u8, x: u16, y: u16, string: &str, scale: u32) {
+        let x_origin = x;
+        let mut x = x;
+        let mut y = y;
+        for c in string.chars() {
+            if c == '\n' {
+                y += 8;
+                x = x_origin;
+                continue;
+            }
+            self.draw_char(c, x, y, color, self.cur_page_ptr1, scale);
+            x += 1;
         }
     }
 
