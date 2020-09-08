@@ -2,7 +2,7 @@ use std::sync::{Arc, RwLock};
 use std::thread::sleep;
 use std::time::Duration;
 
-use log::debug;
+use log::{debug, trace};
 use sdl2::audio::AudioCallback;
 
 use crate::sfxplayer::SfxPattern;
@@ -103,6 +103,7 @@ impl AudioCallback for MixerAudio {
     type Channel = i8;
 
     fn callback(&mut self, out: &mut [i8]) {
+        trace!("MixerAudio::callback()");
         let mut write_guard = loop {
             if let Ok(write_guard) = self.0.write() {
                 break write_guard;
@@ -128,7 +129,7 @@ impl AudioCallback for MixerAudio {
                         } else {
                             p1 + 1
                         }
-                    } else if p1 == channel.chunk.len - 1 {
+                    } else if channel.chunk.len == 0 || p1 == channel.chunk.len - 1 {
                         debug!("Stopping sample on channel {}", chan_num);
                         ch.take();
                         break;
