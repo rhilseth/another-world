@@ -19,7 +19,6 @@ structopt = "0.3"
 timer = "0.2"
 
 [dependencies.sdl2]
-path = "../rust-sdl2"
 version = "0.34"
 features = ["bundled"]
 
