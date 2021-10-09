@@ -164,7 +164,8 @@ impl MemlistReader {
         let mem_list = match self.asset_platform {
             AssetPlatform::PC => {
                 let path = self.asset_path.join("Memlist.bin");
-                let mut file = File::open(path)?;
+                let mut file = File::open(&path)
+                    .map_err(|_| Error::new(ErrorKind::NotFound, format!("{} does not exist", path.display())))?;
                 self.read_entries(&mut file)?
             }
             AssetPlatform::Amiga => self.read_memlist_from_executable("another")?,
