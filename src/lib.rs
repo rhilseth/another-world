@@ -6,6 +6,7 @@ pub mod video;
 pub mod vm;
 
 mod font;
+pub mod input;
 pub mod mixer;
 mod opcode;
 mod parts;

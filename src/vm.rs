@@ -5,6 +5,7 @@ use std::io::{Cursor, Result};
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, RwLock};
 
+use crate::input::UserInput;
 use crate::mixer;
 use crate::mixer::{Mixer, MixerAudio, MixerChunk};
 use crate::opcode::Opcode;
@@ -74,13 +75,14 @@ pub struct VirtualMachine {
     video_buffer_seg: VideoBufferSeg,
     script_stack_calls: [usize; STACK_SIZE],
     sys: SDLSys,
+    user_input: UserInput,
     last_timestamp: u64,
     variable_receiver: Option<Receiver<i16>>,
     scale: u32,
 }
 
 impl VirtualMachine {
-    pub fn new(resource: Resource, video: Video, mut sys: SDLSys, scale: u32) -> VirtualMachine {
+    pub fn new(resource: Resource, video: Video, mut sys: SDLSys, user_input: UserInput, scale: u32) -> VirtualMachine {
         let mut variables = [0; NUM_VARIABLES];
         variables[0x54] = 0x81;
         variables[VM_VARIABLE_RANDOM_SEED] = random::<i16>();
@@ -100,6 +102,7 @@ impl VirtualMachine {
             video_buffer_seg: VideoBufferSeg::Cinematic,
             script_stack_calls: [0; STACK_SIZE],
             sys,
+            user_input,
             last_timestamp: 0,
             variable_receiver: None,
             scale,
@@ -168,7 +171,7 @@ impl VirtualMachine {
     }
 
     pub fn update_player_input(&mut self) -> bool {
-        let input = self.sys.process_events();
+        let input = self.user_input.process_events();
 
         if self.resource.current_part_id == 0x3e89 {
             let c = input.last_char;

@@ -4,6 +4,7 @@ use pretty_env_logger;
 use structopt::StructOpt;
 
 use anotherworld::engine;
+use anotherworld::input;
 use anotherworld::resource;
 use anotherworld::resource::AssetPlatform;
 use anotherworld::sys;
@@ -45,9 +46,11 @@ fn main() -> std::io::Result<()> {
         (320, 200, 1)
     };
 
+    let event_pump = sdl_context.event_pump().unwrap();
+    let user_input = input::UserInput::new(event_pump);
     let sys = sys::SDLSys::new(sdl_context, width, height);
     let video = video::Video::new(width, height);
-    let mut vm = vm::VirtualMachine::new(resource, video, sys, zoom);
+    let mut vm = vm::VirtualMachine::new(resource, video, sys, user_input,zoom);
     if !opt.no_bypass {
         vm.set_variable(0xbc, 0x10);
         vm.set_variable(0xc6, 0x80);

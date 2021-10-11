@@ -5,6 +5,7 @@ use std::{thread, time};
 use pretty_env_logger;
 use structopt::StructOpt;
 
+use anotherworld::input;
 use anotherworld::mixer;
 use anotherworld::resource;
 use anotherworld::sys;
@@ -67,6 +68,9 @@ fn main() -> std::io::Result<()> {
     video.palette_requested = Some(palette);
     video.change_page_ptr1(0);
 
+    let event_pump = sdl_context.event_pump().unwrap();
+    let mut user_input = input::UserInput::new(event_pump);
+
     let mut sys = sys::SDLSys::new(sdl_context, width, height);
 
     let mixer = Arc::new(RwLock::new(mixer::Mixer::new()));
@@ -88,7 +92,7 @@ fn main() -> std::io::Result<()> {
                         let vol = 255;
                         write_guard.play_channel(0, chunk, 10000, vol);
                     }
-                    if sys.process_events().quit == true {
+                    if user_input.process_events().quit == true {
                         return Ok(());
                     }
                     res.invalidate_resource();
