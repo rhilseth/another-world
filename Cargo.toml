@@ -20,5 +20,5 @@ timer = "0.2"
 
 [dependencies.sdl2]
 version = "0.34"
-features = ["bundled"]
+features = ["bundled", "unsafe_textures"]
 

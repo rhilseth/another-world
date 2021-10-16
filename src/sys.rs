@@ -4,12 +4,11 @@ use std::{thread, time};
 
 use sdl2::audio::{AudioDevice, AudioSpecDesired};
 use sdl2::pixels::{Color, Palette, PixelFormatEnum};
-use sdl2::rect::Rect;
-use sdl2::render::WindowCanvas;
+use sdl2::render::{Texture, TextureCreator, WindowCanvas};
 use sdl2::surface::Surface;
+use sdl2::video::WindowContext;
 
 use crate::mixer;
-
 use crate::video;
 
 pub struct SDLSys {
@@ -20,10 +19,33 @@ pub struct SDLSys {
     timestamp: time::Instant,
     width: usize,
     height: usize,
+    texture_creator: TextureCreator<WindowContext>,
+    scanlines: bool,
+    scanline_overlay_size: (u32, u32),
+    scanline_texture: Option<Texture>,
+}
+
+fn create_scanline_overlay(display_width: u32, display_height: u32) -> Surface<'static> {
+    let mut surface = Surface::new(display_width, display_height, PixelFormatEnum::RGBA8888).unwrap();
+
+    let val = 48;
+    let step = display_height as usize / 200;
+    if step < 3 {
+        return surface;
+    }
+    surface.with_lock_mut(|p| {
+        for j in (1..display_height).step_by(step) {
+            for i in 0..display_width {
+                p[(((j-1)*display_width*4)+i*4) as usize] = val;
+                p[((j*display_width*4)+i*4) as usize] = val;
+            }
+        }
+    });
+    surface
 }
 
 impl SDLSys {
-    pub fn new(sdl_context: sdl2::Sdl, width: usize, height: usize) -> SDLSys {
+    pub fn new(sdl_context: sdl2::Sdl, width: usize, height: usize, scanlines: bool) -> SDLSys {
         let video_subsystem = sdl_context.video().unwrap();
 
         let window = video_subsystem
@@ -37,6 +59,9 @@ impl SDLSys {
         canvas
             .set_logical_size(width as u32, height as u32)
             .expect("Expected logical size");
+
+        let texture_creator = canvas.texture_creator();
+
         SDLSys {
             sdl_context,
             surface: Surface::new(width as u32, height as u32, PixelFormatEnum::Index8).unwrap(),
@@ -45,6 +70,10 @@ impl SDLSys {
             timestamp: time::Instant::now(),
             width,
             height,
+            texture_creator,
+            scanlines,
+            scanline_overlay_size: (0, 0),
+            scanline_texture: None,
         }
     }
 
@@ -73,18 +102,31 @@ impl SDLSys {
                     .clone_from_slice(&page.data[page_offset..(width + page_offset)]);
             }
         });
-        let texture_creator = self.canvas.texture_creator();
-        let texture = texture_creator
+        let texture = self.texture_creator
             .create_texture_from_surface(&*self.surface)
             .unwrap();
+
         self.canvas.clear();
         self.canvas
-            .copy(
-                &texture,
-                None,
-                Some(Rect::new(0, 0, width as u32, height as u32)),
-            )
+            .copy(&texture, None, None)
             .unwrap();
+
+        if self.scanlines && self.scanline_overlay_size != self.canvas.output_size().unwrap() {
+            let (display_width, display_height) = self.canvas.output_size().unwrap();
+            let scanline_overlay = create_scanline_overlay(display_width, display_height);
+            let overlay = self.texture_creator
+                .create_texture_from_surface(&*scanline_overlay)
+                .unwrap();
+            self.scanline_texture = Some(overlay);
+            self.scanline_overlay_size = (display_width, display_height);
+        }
+
+        if let Some(scanline_texture) = &self.scanline_texture {
+            self.canvas
+                .copy(&scanline_texture, None, None)
+                .unwrap();
+        }
+
         self.canvas.present();
     }
 

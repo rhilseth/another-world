@@ -71,7 +71,7 @@ fn main() -> std::io::Result<()> {
     let event_pump = sdl_context.event_pump().unwrap();
     let mut user_input = input::UserInput::new(event_pump);
 
-    let mut sys = sys::SDLSys::new(sdl_context, width, height);
+    let mut sys = sys::SDLSys::new(sdl_context, width, height, false);
 
     let mixer = Arc::new(RwLock::new(mixer::Mixer::new()));
     sys.start_audio(mixer.clone());

@@ -29,6 +29,8 @@ struct Opt {
     /// Enable hires graphics
     #[structopt(long)]
     hires: bool,
+    #[structopt(long)]
+    scanlines: bool,
 }
 
 fn main() -> std::io::Result<()> {
@@ -48,7 +50,7 @@ fn main() -> std::io::Result<()> {
 
     let event_pump = sdl_context.event_pump().unwrap();
     let user_input = input::UserInput::new(event_pump);
-    let sys = sys::SDLSys::new(sdl_context, width, height);
+    let sys = sys::SDLSys::new(sdl_context, width, height, opt.scanlines);
     let video = video::Video::new(width, height);
     let mut vm = vm::VirtualMachine::new(resource, video, sys, user_input,zoom);
     if !opt.no_bypass {
