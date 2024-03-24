@@ -73,13 +73,13 @@ pub struct MemEntry {
     state: MemEntryState,
     pub entry_type: EntryType,
     buf_ptr: usize,
-    unk4: u16,
+    _unk4: u16,
     rank_num: u8,
     bank_id: u8,
     bank_offset: u32,
-    unkc: u16,
+    _unkc: u16,
     packed_size: usize,
-    unk10: u16,
+    _unk10: u16,
     size: usize,
 }
 
@@ -143,13 +143,13 @@ impl MemlistReader {
                 state: MemEntryState::from_u8(reader.read_u8()?)?,
                 entry_type: EntryType::from_u8(reader.read_u8()?),
                 buf_ptr: reader.read_u16::<BigEndian>()? as usize,
-                unk4: reader.read_u16::<BigEndian>()?,
+                _unk4: reader.read_u16::<BigEndian>()?,
                 rank_num: reader.read_u8()?,
                 bank_id: reader.read_u8()?,
                 bank_offset: reader.read_u32::<BigEndian>()?,
-                unkc: reader.read_u16::<BigEndian>()?,
+                _unkc: reader.read_u16::<BigEndian>()?,
                 packed_size: reader.read_u16::<BigEndian>()? as usize,
-                unk10: reader.read_u16::<BigEndian>()?,
+                _unk10: reader.read_u16::<BigEndian>()?,
                 size: reader.read_u16::<BigEndian>()? as usize,
             };
             if let MemEntryState::EndOfMemList = entry.state {
