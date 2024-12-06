@@ -1,6 +1,7 @@
 use bitflags::bitflags;
 
 bitflags! {
+    #[derive(Clone, Copy)]
     pub struct PlayerDirection: u8 {
         const LEFT  = 0b0000_0001;
         const RIGHT = 0b0000_0010;
