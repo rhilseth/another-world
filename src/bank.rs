@@ -31,7 +31,7 @@ struct Unpacker<'a> {
 }
 
 impl<'a> Unpacker<'a> {
-    fn new(data: &'a [u8]) -> Unpacker {
+    fn new(data: &'a [u8]) -> Unpacker<'a> {
         Unpacker {
             data,
             i: 0,
