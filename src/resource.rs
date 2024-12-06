@@ -164,8 +164,12 @@ impl MemlistReader {
         let mem_list = match self.asset_platform {
             AssetPlatform::PC => {
                 let path = self.asset_path.join("Memlist.bin");
-                let mut file = File::open(&path)
-                    .map_err(|_| Error::new(ErrorKind::NotFound, format!("{} does not exist", path.display())))?;
+                let mut file = File::open(&path).map_err(|_| {
+                    Error::new(
+                        ErrorKind::NotFound,
+                        format!("{} does not exist", path.display()),
+                    )
+                })?;
                 self.read_entries(&mut file)?
             }
             AssetPlatform::Amiga => self.read_memlist_from_executable("another")?,
@@ -226,7 +230,7 @@ impl Resource {
             return;
         }
 
-        if part_id < parts::GAME_PART_FIRST || part_id > parts::GAME_PART_LAST {
+        if !(parts::GAME_PART_FIRST..=parts::GAME_PART_LAST).contains(&part_id) {
             panic!("Unknown part: {:x}", part_id);
         }
 
@@ -316,10 +320,10 @@ impl Resource {
                 };
                 for _j in 0..8 {
                     let mut acc = 0;
-                    for i in 0..4 {
+                    for elem in &mut p {
                         acc <<= 1;
-                        acc |= if (p[i] & 0x80) > 0 { 1 } else { 0 };
-                        p[i] <<= 1;
+                        acc |= if (*elem & 0x80) > 0 { 1 } else { 0 };
+                        *elem <<= 1;
                     }
                     buf.push(acc);
                 }
@@ -380,13 +384,13 @@ impl Resource {
             *order = data[0x40 + i];
         }
         if *delay == 0 {
-            *delay = BigEndian::read_u16(&data)
+            *delay = BigEndian::read_u16(data)
         }
         let data = &data[0xc0..entry.size];
         let mut samples = Vec::new();
         for i in 0..15 {
             let buf = &self.memory[entry.buf_ptr + 2 + i * 4..];
-            samples.push(self.prepare_instrument(&buf)?);
+            samples.push(self.prepare_instrument(buf)?);
         }
 
         let module = SfxModule::new(data.into(), cur_order, num_order, order_table, samples);
@@ -405,7 +409,7 @@ impl Resource {
             panic!("Error loading instrument 0x{:x}", resource_id);
         }
         let mut data = self.memory[entry.buf_ptr..entry.buf_ptr + entry.size].to_vec();
-        if data.len() == 0 {
+        if data.is_empty() {
             return Ok(None);
         }
         for item in data.iter_mut().take(12).skip(8) {
@@ -428,7 +432,7 @@ impl Resource {
         let mut file = File::open(file_name)?;
         file.seek(SeekFrom::Start(mem_entry.bank_offset as u64))?;
 
-        let mut data = vec![0; mem_entry.packed_size as usize];
+        let mut data = vec![0; mem_entry.packed_size];
         file.read_exact(&mut data)?;
         let bank = if mem_entry.packed_size == mem_entry.size {
             Bank::Uncompressed(data)
@@ -473,7 +477,7 @@ impl Resource {
                 continue;
             }
 
-            let bank = Resource::read_bank(&self.asset_path, &entry, &self.asset_platform)
+            let bank = Resource::read_bank(&self.asset_path, entry, &self.asset_platform)
                 .expect("Could not read bank");
             debug!("read_bank() rank_num: {} packed_size: 0x{:x} size: 0x{:x} type={:?} pos={:x} bank_id={:x}", entry.rank_num, entry.packed_size, entry.size, entry.entry_type, entry.bank_offset, entry.bank_id);
 

@@ -38,3 +38,9 @@ impl PlayerInput {
         }
     }
 }
+
+impl Default for PlayerInput {
+    fn default() -> Self {
+        Self::new()
+    }
+}

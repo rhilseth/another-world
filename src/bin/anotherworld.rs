@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 
-use pretty_env_logger;
 use structopt::StructOpt;
 
 use anotherworld::engine;
@@ -52,7 +51,7 @@ fn main() -> std::io::Result<()> {
     let user_input = input::UserInput::new(event_pump);
     let sys = sys::SDLSys::new(sdl_context, width, height, opt.scanlines);
     let video = video::Video::new(width, height);
-    let mut vm = vm::VirtualMachine::new(resource, video, sys, user_input,zoom);
+    let mut vm = vm::VirtualMachine::new(resource, video, sys, user_input, zoom);
     if !opt.no_bypass {
         vm.set_variable(0xbc, 0x10);
         vm.set_variable(0xc6, 0x80);

@@ -127,9 +127,7 @@ impl Video {
         debug!("update_display({})", page_id);
         if page_id != 0xfe {
             if page_id == 0xff {
-                let tmp = self.cur_page_ptr3;
-                self.cur_page_ptr3 = self.cur_page_ptr2;
-                self.cur_page_ptr2 = tmp;
+                std::mem::swap(&mut self.cur_page_ptr3, &mut self.cur_page_ptr2);
             } else {
                 self.cur_page_ptr2 = self.get_page_id(page_id);
             }
@@ -201,7 +199,7 @@ impl Video {
 
     pub fn copy_page_buffer(&mut self, buffer: &[u8]) {
         let dst_slice = &mut self.pages[0].data;
-        dst_slice.copy_from_slice(&buffer);
+        dst_slice.copy_from_slice(buffer);
     }
 
     pub fn draw_string_id(&mut self, color: u8, x: u16, y: u16, string_id: u16, scale: u32) {

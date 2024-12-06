@@ -2,7 +2,6 @@ use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use std::{thread, time};
 
-use pretty_env_logger;
 use structopt::StructOpt;
 
 use anotherworld::input;
@@ -26,7 +25,7 @@ struct Opt {
 
 #[derive(Debug, StructOpt)]
 enum Command {
-    List { },
+    List {},
 }
 
 fn main() -> std::io::Result<()> {
@@ -37,30 +36,106 @@ fn main() -> std::io::Result<()> {
 
     let sdl_context = sdl2::init().unwrap();
 
-    let (width, height, _zoom) = if false {
-        (640, 400, 2)
-    } else {
-        (320, 200, 1)
-    };
+    let (width, height, _zoom) = if false { (640, 400, 2) } else { (320, 200, 1) };
 
     let palette = video::Palette {
         entries: [
-            video::Color { r: 0, g: 0, b: 0, a: 255 },
-            video::Color { r: 255, g: 255, b: 255, a: 255 },
-            video::Color { r: 255, g: 255, b: 255, a: 255 },
-            video::Color { r: 255, g: 255, b: 255, a: 255 },
-            video::Color { r: 255, g: 255, b: 255, a: 255 },
-            video::Color { r: 255, g: 255, b: 255, a: 255 },
-            video::Color { r: 255, g: 255, b: 255, a: 255 },
-            video::Color { r: 255, g: 255, b: 255, a: 255 },
-            video::Color { r: 255, g: 255, b: 255, a: 255 },
-            video::Color { r: 255, g: 255, b: 255, a: 255 },
-            video::Color { r: 255, g: 255, b: 255, a: 255 },
-            video::Color { r: 255, g: 255, b: 255, a: 255 },
-            video::Color { r: 255, g: 255, b: 255, a: 255 },
-            video::Color { r: 255, g: 255, b: 255, a: 255 },
-            video::Color { r: 255, g: 255, b: 255, a: 255 },
-            video::Color { r: 255, g: 255, b: 255, a: 255 },
+            video::Color {
+                r: 0,
+                g: 0,
+                b: 0,
+                a: 255,
+            },
+            video::Color {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+            video::Color {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+            video::Color {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+            video::Color {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+            video::Color {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+            video::Color {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+            video::Color {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+            video::Color {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+            video::Color {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+            video::Color {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+            video::Color {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+            video::Color {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+            video::Color {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+            video::Color {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+            video::Color {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
         ],
     };
 
@@ -77,13 +152,19 @@ fn main() -> std::io::Result<()> {
     sys.start_audio(mixer.clone());
 
     match opt.cmd {
-        Command::List { } => {
+        Command::List {} => {
             for i in 0..res.mem_list.len() {
                 println!("i : {}", i);
                 if res.mem_list[i].entry_type == resource::EntryType::Sound {
                     let resource_id = i as u16;
                     video.fill_video_page(0, 0);
-                    video.draw_string(1, 1, 10, &format!("Resource: {:03} - {:#?}", i, res.mem_list[i].entry_type), 1);
+                    video.draw_string(
+                        1,
+                        1,
+                        10,
+                        &format!("Resource: {:03} - {:#?}", i, res.mem_list[i].entry_type),
+                        1,
+                    );
                     video.update_display(&mut sys, 0);
 
                     res.load_memory_entry(resource_id);
@@ -92,14 +173,14 @@ fn main() -> std::io::Result<()> {
                         let vol = 255;
                         write_guard.play_channel(0, chunk, 10000, vol);
                     }
-                    if user_input.process_events().quit == true {
+                    if user_input.process_events().quit {
                         return Ok(());
                     }
                     res.invalidate_resource();
                     thread::sleep(time::Duration::from_millis(1000));
                 }
             }
-        },
+        }
     }
     Ok(())
 }

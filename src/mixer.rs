@@ -19,13 +19,7 @@ const NUM_CHANNELS: usize = 4;
 pub const SOUND_SAMPLE_RATE: u32 = 22050;
 
 fn add_clamp(a: i16, b: i16) -> i8 {
-    let mut add = a + b;
-    if add < -128 {
-        add = -128;
-    } else if add > 127 {
-        add = 127;
-    }
-    add as i8
+    (a + b).clamp(-128, 127) as i8
 }
 
 pub struct MixerChunk {
@@ -93,6 +87,12 @@ impl Mixer {
         for channel in self.channels.iter_mut() {
             channel.take();
         }
+    }
+}
+
+impl Default for Mixer {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

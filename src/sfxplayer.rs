@@ -3,7 +3,6 @@ use std::sync::mpsc::{sync_channel, Receiver};
 use std::sync::{Arc, RwLock};
 
 use byteorder::{BigEndian, ReadBytesExt};
-use chrono;
 use log::{debug, error, trace};
 use timer::{Guard, Timer};
 
@@ -221,7 +220,7 @@ impl SfxPlayer {
                     trace!("Sample len: {}", sample.data.len());
                     return Ok(Some(PatternResult::Pattern(
                         channel,
-                        SfxPattern::from_notes(note1, note2, &sample)?,
+                        SfxPattern::from_notes(note1, note2, sample)?,
                     )));
                 }
             }

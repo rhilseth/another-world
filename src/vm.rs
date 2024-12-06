@@ -82,7 +82,13 @@ pub struct VirtualMachine {
 }
 
 impl VirtualMachine {
-    pub fn new(resource: Resource, video: Video, mut sys: SDLSys, user_input: UserInput, scale: u32) -> VirtualMachine {
+    pub fn new(
+        resource: Resource,
+        video: Video,
+        mut sys: SDLSys,
+        user_input: UserInput,
+        scale: u32,
+    ) -> VirtualMachine {
         let mut variables = [0; NUM_VARIABLES];
         variables[0x54] = 0x81;
         variables[VM_VARIABLE_RANDOM_SEED] = random::<i16>();
@@ -175,7 +181,7 @@ impl VirtualMachine {
 
         if self.resource.current_part_id == 0x3e89 {
             let c = input.last_char;
-            if c == '\x08' || c == '\0' || (c >= 'A' && c <= 'Z') {
+            if c == '\x08' || c == '\0' || c.is_ascii_uppercase() {
                 self.variables[VM_VARIABLE_LAST_KEYCHAR] = c as i16;
             }
         }
@@ -248,7 +254,8 @@ impl VirtualMachine {
 
                 trace!(
                     "host_frame() thread_id=0x{:02x} pos=0x{:x}",
-                    thread_id, self.threads[thread_id].pc
+                    thread_id,
+                    self.threads[thread_id].pc
                 );
 
                 // if input.quit { break }....
@@ -382,7 +389,8 @@ impl VirtualMachine {
         let pc_offset_requested = self.fetch_word() as usize;
         trace!(
             "set_set_vect(0x{:02x}, 0x{:x})",
-            thread_id, pc_offset_requested
+            thread_id,
+            pc_offset_requested
         );
         self.threads[thread_id].requested_pc_offset = Some(pc_offset_requested);
     }
@@ -413,7 +421,10 @@ impl VirtualMachine {
         };
         trace!(
             "op_cond_jmp({}, 0x{:02x}, 0x{:02x}) var=0x{:02x}",
-            opcode, b, a, var
+            opcode,
+            b,
+            a,
+            var
         );
 
         let expr = match opcode & 7 {
@@ -439,7 +450,10 @@ impl VirtualMachine {
                 _ => " unsupported ",
             };
 
-            warn!("Checking music variable {} {} {} = {:?}", b, operator, a, expr);
+            warn!(
+                "Checking music variable {} {} {} = {:?}",
+                b, operator, a, expr
+            );
         }
 
         if expr {
@@ -552,7 +566,8 @@ impl VirtualMachine {
         let x = self.fetch_byte() as u16;
         let y = self.fetch_byte() as u16;
         let color = self.fetch_byte();
-        self.video.draw_string_id(color, x, y, string_id, self.scale);
+        self.video
+            .draw_string_id(color, x, y, string_id, self.scale);
     }
 
     fn op_sub(&mut self) {
@@ -597,7 +612,10 @@ impl VirtualMachine {
         let channel = self.fetch_byte();
         trace!(
             "play_sound(0x{:x}, {}, {}, {})",
-            resource_id, freq, vol, channel
+            resource_id,
+            freq,
+            vol,
+            channel
         );
         self.play_sound_resource(resource_id, freq, vol, channel);
     }
@@ -685,7 +703,10 @@ impl VirtualMachine {
         }
         trace!(
             "draw_poly_sprite() offset=0x{:x}, x={}, y={}, zoom={}",
-            offset, x, y, zoom
+            offset,
+            x,
+            y,
+            zoom
         );
         let segment = match self.video_buffer_seg {
             VideoBufferSeg::Cinematic => self.resource.seg_cinematic,
@@ -722,7 +743,10 @@ impl VirtualMachine {
         }
         trace!(
             "DrawPolyBackground: val: 0x{:02x} off={} x={} y={}",
-            val, offset, x, y
+            val,
+            offset,
+            x,
+            y
         );
 
         let mut buffer = Cursor::new(&self.resource.memory[self.resource.seg_cinematic..]);

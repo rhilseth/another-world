@@ -26,7 +26,8 @@ pub struct SDLSys {
 }
 
 fn create_scanline_overlay(display_width: u32, display_height: u32) -> Surface<'static> {
-    let mut surface = Surface::new(display_width, display_height, PixelFormatEnum::RGBA8888).unwrap();
+    let mut surface =
+        Surface::new(display_width, display_height, PixelFormatEnum::RGBA8888).unwrap();
 
     let val = 48;
     let step = display_height as usize / 200;
@@ -36,8 +37,8 @@ fn create_scanline_overlay(display_width: u32, display_height: u32) -> Surface<'
     surface.with_lock_mut(|p| {
         for j in (1..display_height).step_by(step) {
             for i in 0..display_width {
-                p[(((j-1)*display_width*4)+i*4) as usize] = val;
-                p[((j*display_width*4)+i*4) as usize] = val;
+                p[(((j - 1) * display_width * 4) + i * 4) as usize] = val;
+                p[((j * display_width * 4) + i * 4) as usize] = val;
             }
         }
     });
@@ -102,19 +103,19 @@ impl SDLSys {
                     .clone_from_slice(&page.data[page_offset..(width + page_offset)]);
             }
         });
-        let texture = self.texture_creator
+        let texture = self
+            .texture_creator
             .create_texture_from_surface(&*self.surface)
             .unwrap();
 
         self.canvas.clear();
-        self.canvas
-            .copy(&texture, None, None)
-            .unwrap();
+        self.canvas.copy(&texture, None, None).unwrap();
 
         if self.scanlines && self.scanline_overlay_size != self.canvas.output_size().unwrap() {
             let (display_width, display_height) = self.canvas.output_size().unwrap();
             let scanline_overlay = create_scanline_overlay(display_width, display_height);
-            let overlay = self.texture_creator
+            let overlay = self
+                .texture_creator
                 .create_texture_from_surface(&*scanline_overlay)
                 .unwrap();
             self.scanline_texture = Some(overlay);
@@ -122,9 +123,7 @@ impl SDLSys {
         }
 
         if let Some(scanline_texture) = &self.scanline_texture {
-            self.canvas
-                .copy(&scanline_texture, None, None)
-                .unwrap();
+            self.canvas.copy(scanline_texture, None, None).unwrap();
         }
 
         self.canvas.present();
@@ -136,7 +135,7 @@ impl SDLSys {
     }
 
     pub fn get_timestamp(&self) -> u64 {
-        (self.timestamp.elapsed().as_millis() & std::u64::MAX as u128) as u64
+        (self.timestamp.elapsed().as_millis() & u64::MAX as u128) as u64
     }
 
     pub fn start_audio(&mut self, audio: Arc<RwLock<mixer::Mixer>>) {
@@ -159,6 +158,4 @@ impl SDLSys {
         device.resume();
         self.audio_device = Some(device);
     }
-
-
 }
