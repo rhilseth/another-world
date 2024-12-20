@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use structopt::StructOpt;
+use clap::Parser;
 
 use anotherworld::engine;
 use anotherworld::input;
@@ -10,30 +10,30 @@ use anotherworld::sys;
 use anotherworld::video;
 use anotherworld::vm;
 
-#[derive(Debug, StructOpt)]
-#[structopt(
+#[derive(Parser)]
+#[command(
     name = "Another World",
     about = "A virtual machine for running Another World"
 )]
 struct Opt {
     /// Set path of game assets
-    #[structopt(parse(from_os_str), long, default_value = "data", name = "PATH")]
+    #[arg(long, default_value = "data", value_name = "PATH")]
     asset_path: PathBuf,
     /// Start with game part
-    #[structopt(long, default_value = "2")]
+    #[arg(long, default_value = "2")]
     game_part: u8,
     /// Disable protection bypass
-    #[structopt(long)]
+    #[arg(long)]
     no_bypass: bool,
     /// Enable hires graphics
-    #[structopt(long)]
+    #[arg(long)]
     hires: bool,
-    #[structopt(long)]
+    #[arg(long)]
     scanlines: bool,
 }
 
 fn main() -> std::io::Result<()> {
-    let opt = Opt::from_args();
+    let opt = Opt::parse();
     pretty_env_logger::init();
     let memlist_reader = resource::MemlistReader::detect_platform(opt.asset_path);
     let resource = memlist_reader.read_memlist()?;

@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use std::{thread, time};
 
-use structopt::StructOpt;
+use clap::{Parser, Subcommand};
 
 use anotherworld::input;
 use anotherworld::mixer;
@@ -10,26 +10,26 @@ use anotherworld::resource;
 use anotherworld::sys;
 use anotherworld::video;
 
-#[derive(Debug, StructOpt)]
-#[structopt(
+#[derive(Parser)]
+#[command(
     name = "Another World resource inspector",
     about = "A tool to inspect Another World resources"
 )]
 struct Opt {
     /// Set path of game assets
-    #[structopt(parse(from_os_str), long, default_value = "data", name = "PATH")]
+    #[arg(long, default_value = "data", value_name = "PATH")]
     asset_path: PathBuf,
-    #[structopt(subcommand)]
+    #[command(subcommand)]
     cmd: Command,
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Subcommand)]
 enum Command {
     List {},
 }
 
 fn main() -> std::io::Result<()> {
-    let opt = Opt::from_args();
+    let opt = Opt::parse();
     pretty_env_logger::init();
     let memlist_reader = resource::MemlistReader::detect_platform(opt.asset_path);
     let mut res = memlist_reader.read_memlist()?;
